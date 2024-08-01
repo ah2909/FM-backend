@@ -15,6 +15,8 @@ class Transaction extends Model
         'content',
         'amount',
         'type',
+        'user_id',
+        'category_id',
     ];
 
     public function user() {

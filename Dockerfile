@@ -24,4 +24,3 @@ ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
 EXPOSE 8000
-CMD php artisan serve --host=0.0.0.0 --port=8000
