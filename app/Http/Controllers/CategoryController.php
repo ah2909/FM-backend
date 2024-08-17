@@ -37,7 +37,7 @@ class CategoryController extends Controller
                 'data' => $err->getMessage(),
             ], 400);
         }
-        
+
 
         return response()->json([
             'data' => $category,
@@ -75,7 +75,7 @@ class CategoryController extends Controller
     public function update(Request $request, $category_id)
     {
         $data = $request->all();
-        
+
         try {
             $category = Category::find($category_id);
             $category->update($data);
@@ -100,7 +100,7 @@ class CategoryController extends Controller
     {
         try {
             $category = Category::find($category_id);
-            if($category) {
+            if ($category) {
                 $category->delete();
                 return response()->json([
                     'message' => 'Category deleted successfully.',
@@ -110,7 +110,21 @@ class CategoryController extends Controller
             return response()->json([
                 'data' => $err->getMessage(),
             ], 400);
-        }  
+        }
     }
 
+    public function showCategoryByType($typ)
+    {
+        try {
+            $category = Category::where('type', $typ)->get();
+        } catch (\Illuminate\Database\QueryException $err) {
+            return response()->json([
+                'data' => $err->getMessage(),
+            ], 400);
+        }
+        
+        return response()->json([
+            'data' => $category,
+        ]);
+    }
 }

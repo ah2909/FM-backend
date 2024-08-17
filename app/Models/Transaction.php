@@ -11,8 +11,8 @@ class Transaction extends Model
     use HasFactory, HasApiTokens;
 
     protected $table = 'transactions';
-    protected $dateFormat = 'd/m/Y H:i';
     protected $fillable = [
+        'id',
         'content',
         'amount',
         'type',

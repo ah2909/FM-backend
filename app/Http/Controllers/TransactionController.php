@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,8 +30,9 @@ class TransactionController extends Controller
     public function store(Request $request)
     {
         $data = $request->all();
-        $data['user_id'] = $request->input('user_id');
-        $data['category_id'] = $request->input('category_id');
+        $data['user_id'] = Auth::id();
+        $category = Category::where('name', $request['category'])->first();
+        $data['category_id'] = $category->id;
 
         try {
             $transaction = Transaction::create($data);
@@ -40,7 +42,6 @@ class TransactionController extends Controller
             ], 400);
         }
         
-
         return response()->json([
             'data' => $transaction,
         ], 201);
@@ -77,6 +78,9 @@ class TransactionController extends Controller
     public function update(Request $request, $transaction_id)
     {
         $data = $request->all();
+        $data['user_id'] = Auth::id();
+        $category = Category::where('name', $request['category'])->first();
+        $data['category_id'] = $category->id;
         
         try {
             $transaction = Transaction::find($transaction_id);

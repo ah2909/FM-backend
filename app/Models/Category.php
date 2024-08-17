@@ -11,8 +11,8 @@ class Category extends Model
     use HasFactory, HasApiTokens;
 
     protected $table = 'categories';
-    protected $dateFormat = 'd/m/Y H:i';
     protected $fillable = [
+        'id',
         'name',
         'type',
     ];

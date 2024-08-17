@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\TransactionController;
+use App\Models\Category;
 
 // Route::get('/user', function (Request $request) {
 //     return $request->user();
@@ -25,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('category')->group(function () {
+        Route::get('/{typ}', [CategoryController::class, 'showCategoryByType']);
         Route::get('', [CategoryController::class, 'index']);
         Route::get('/{category_id}', [CategoryController::class, 'show']);
         Route::post('', [CategoryController::class, 'store']);
