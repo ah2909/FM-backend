@@ -17,7 +17,7 @@ class TransactionController extends Controller
     public function index()
     {
         return response()->json([
-            'data' => Transaction::all(),
+            'data' => Transaction::where('user_id', Auth::id())->get(),
         ]);
     }
 
