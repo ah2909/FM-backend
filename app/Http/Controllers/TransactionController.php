@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Transaction;
+use Carbon\Carbon;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Exceptions;
 
 class TransactionController extends Controller
 {
@@ -16,8 +19,12 @@ class TransactionController extends Controller
      */
     public function index()
     {
+        $transaction = Transaction::where('user_id', Auth::id())->get();
+        foreach($transaction as $tran) {
+            $tran->category_id = $tran->category->name;
+        }
         return response()->json([
-            'data' => Transaction::where('user_id', Auth::id())->get(),
+            'data' => $transaction,
         ]);
     }
 
@@ -57,10 +64,17 @@ class TransactionController extends Controller
     {
         try {
             $transaction = Transaction::find($transaction_id);
+            if($transaction->user_id !== Auth::id()) {
+                throw new Exception('Do not have permission', 403);
+            }
         } catch (\Illuminate\Database\QueryException $err) {
             return response()->json([
                 'data' => $err->getMessage(),
             ], 400);
+        } catch (Exception $err) {
+            return response()->json([
+                    'data' => $err->getMessage(),
+            ], 403);
         }
 
         return response()->json([
@@ -84,11 +98,18 @@ class TransactionController extends Controller
         
         try {
             $transaction = Transaction::find($transaction_id);
+            if($transaction->user_id !== Auth::id()) {
+                throw new Exception('Do not have permission', 403);
+            }
             $transaction->update($data);
         } catch (\Illuminate\Database\QueryException $err) {
             return response()->json([
                 'data' => $err->getMessage(),
             ], 400);
+        } catch (Exception $err) {
+            return response()->json([
+                    'data' => $err->getMessage(),
+            ], 403);
         }
 
         return response()->json([
@@ -106,16 +127,54 @@ class TransactionController extends Controller
     {
         try {
             $transaction = Transaction::find($transaction_id);
-            if($transaction) {
-                $transaction->delete();
-                return response()->json([
-                    'message' => 'Transaction deleted successfully.',
-                ], 204);
+            if($transaction->user_id !== Auth::id()) {
+                throw new Exception('Do not have permission', 403);
             }
+            $transaction->delete();
         } catch (\Illuminate\Database\QueryException $err) {
             return response()->json([
                 'data' => $err->getMessage(),
             ], 400);
-        }  
+        }  catch (Exception $err) {
+            return response()->json([
+                    'data' => $err->getMessage(),
+            ], 403);
+        }
+
+        return response()->json([
+            'message' => 'Transaction deleted successfully.',
+        ], 204);
+    }
+
+    public function transactionStatisticsInMonth() {
+        $now = Carbon::now();
+        $month = $now->month;
+        
+        $start = Carbon::createFromDate(null, null, 10);
+        $end = Carbon::createFromDate(null, $month + 1, 10);
+        try {
+            $transaction = Transaction::where('user_id', Auth::id())
+                                    ->whereBetween('created_at', [$start, $end])->get();
+            $income = 0;
+            $expense = 0;
+
+            foreach($transaction as $tran) {
+                if($tran->type === 'INCOME') $income += $tran->amount;
+                else $expense -= $tran->amount;
+            }
+
+            $balance = $income + $expense;
+
+        } catch (\Illuminate\Database\QueryException $err) {
+            return response()->json([
+                'data' => $err->getMessage(),
+            ], 400);
+        }
+
+        return response()->json([
+            'income' => $income,
+            'expense'=> $expense,
+            'balance'=> $balance,
+        ]);
     }
 }
