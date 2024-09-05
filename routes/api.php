@@ -18,7 +18,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::prefix('transactions')->group(function () {
-        Route::get('/statistics', [TransactionController::class, 'transactionStatisticsInMonth']);
+        Route::post('/statistics', [TransactionController::class, 'transactionStatisticsInRange']);
         Route::get('', [TransactionController::class, 'index']);
         Route::get('/{transaction_id}', [TransactionController::class, 'show']);
         Route::post('', [TransactionController::class, 'store']);

@@ -19,7 +19,7 @@ class TransactionController extends Controller
      */
     public function index()
     {
-        $transaction = Transaction::where('user_id', Auth::id())->get();
+        $transaction = Transaction::where('user_id', Auth::id())->orderBy('created_at', 'desc')->paginate(10);
         foreach($transaction as $tran) {
             $tran->category_id = $tran->category->name;
         }
@@ -146,12 +146,10 @@ class TransactionController extends Controller
         ], 204);
     }
 
-    public function transactionStatisticsInMonth() {
-        $now = Carbon::now();
-        $month = $now->month;
+    public function transactionStatisticsInRange(Request $request) {
+        $start = $request->input('from');
+        $end = $request->input('to');
         
-        $start = Carbon::createFromDate(null, null, 10);
-        $end = Carbon::createFromDate(null, $month + 1, 10);
         try {
             $transaction = Transaction::where('user_id', Auth::id())
                                     ->whereBetween('created_at', [$start, $end])->get();
