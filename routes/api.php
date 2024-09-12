@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AssetController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
@@ -33,5 +34,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('', [CategoryController::class, 'store']);
         Route::put('/{category_id}', [CategoryController::class, 'update']);
         Route::delete('/{category_id}', [CategoryController::class, 'destroy']);
+    });
+
+    Route::prefix('asset')->group(function () {
+        Route::get('', [AssetController::class, 'index']);
+        Route::post('', [AssetController::class, 'store']);
     });
 });

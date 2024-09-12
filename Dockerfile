@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y \
     nano
 
 RUN docker-php-ext-install pdo_mysql mysqli mbstring exif pcntl bcmath gd zip
-
+RUN pecl install xdebug && docker-php-ext-enable xdebug
+    
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 COPY . .
 

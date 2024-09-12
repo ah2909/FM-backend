@@ -53,4 +53,8 @@ class User extends Authenticatable
     public function categories() {
         return $this->hasMany(Category::class);
     }
+
+    public function assets() {
+        return $this->belongsToMany(Asset::class, 'user_asset');
+    }
 }
