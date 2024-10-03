@@ -57,4 +57,8 @@ class User extends Authenticatable
     public function assets() {
         return $this->belongsToMany(Asset::class, 'user_asset');
     }
+
+    public function binance() {
+        return $this->hasOne(Binance::class);
+    }
 }

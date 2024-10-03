@@ -4,6 +4,7 @@ use App\Http\Controllers\AssetController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BinanceController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\TransactionController;
 use App\Models\Category;
@@ -39,5 +40,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('asset')->group(function () {
         Route::get('', [AssetController::class, 'index']);
         Route::post('', [AssetController::class, 'store']);
+    });
+
+    Route::prefix('binance-key')->group(function () {
+        Route::get('', [BinanceController::class, 'getKeyByUserId']);
+        Route::get('/assets', [BinanceController::class, 'getAssetDetails']);
+        Route::post('', [BinanceController::class, 'store']);
     });
 });

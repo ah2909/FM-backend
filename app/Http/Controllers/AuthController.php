@@ -40,7 +40,9 @@ class AuthController extends Controller
             'status' => 'success',
             'message' => 'User logged in successfully',
             'name' => $user->name,
+            'email' => $user->email,
             'token' => $user->createToken('auth_token')->plainTextToken,
+            'company_id' => $user->company_id
         ]);
     }
 
