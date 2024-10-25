@@ -61,4 +61,8 @@ class User extends Authenticatable
     public function binance() {
         return $this->hasOne(Binance::class);
     }
+
+    public function getBalance() {
+        
+    }
 }
