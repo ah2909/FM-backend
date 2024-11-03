@@ -31,7 +31,7 @@ class BinanceAPI
      * @param string $api_url API base URL (see config for example)
      * @param int    $timing  Binance API timing setting (default 10000)
      */
-    public function __construct($api_key = null, $api_secret = null, $api_url = null, $timing = 20000)
+    public function __construct($api_key = null, $api_secret = null, $api_url = null, $timing = 50000)
     {
         $this->api_key = $api_key;
         $this->api_secret = $api_secret;
@@ -176,7 +176,6 @@ class BinanceAPI
     public function getAccountInfo()
     {
         $response = $this->privateRequest('/v3/account', ['omitZeroBalances' => 'true']);
-
         return $response;
     }
 
@@ -390,8 +389,9 @@ class BinanceAPI
      */
     private function milliseconds()
     {
-        list($msec, $sec) = explode(' ', microtime());
+        // list($msec, $sec) = explode(' ', microtime());
 
-        return $sec.substr($msec, 2, 3);
+        // return $sec.substr($msec, 2, 3);
+	return time() * 1000 -3000;
     }
 }

@@ -28,21 +28,21 @@ class StoreUserBalance extends Command
 
     public function handle()
     {
-        $users = User::all();
+	$users = User::all();
 
-        foreach ($users as $user) {
-            // Assuming you have a method to get the balance
-            $balance = $this->binanceController->getAssetDetails($user->id);
-            if(!$balance) continue;
-            $data = $balance->getData();
-            // Store the balance in the database
-            DB::table('cron_data')->insert([
-                'asset_balance' => $data->total,
-                'user_id' => $user->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
+	foreach ($users as $user) {
+    		// Assuming you have a method to get the balance
+    		$balance = $this->binanceController->getAssetDetails($user->id);
+    		if(!$balance) continue;
+    		$data = $balance->getData();
+    		// Store the balance in the database
+    		DB::table('cron_data')->insert([
+        		'asset_balance' => $data->total,
+        		'user_id' => $user->id,
+        		'created_at' => now(),
+        		'updated_at' => now(),
+    		]);
+	}
 
         $this->info('User balances have been stored successfully.');
     }

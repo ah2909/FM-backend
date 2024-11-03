@@ -42,6 +42,7 @@ class BinanceController extends Controller {
         if(!$key) return null;
         $api = new BinanceAPI($key->api_key, $key->secret_key, env('BINANCE_API_URL'));
         $assets = $api->getAccountInfo();
+     
         $symbol = array_map(fn ($a) => $a['asset'] . 'USDT', $assets['balances']);
        
         $responses = Http::pool(function (Pool $pool) use ($symbol) {
@@ -69,5 +70,19 @@ class BinanceController extends Controller {
             'total'  => ceil($totalValue),
             'history'=> $history
         ]);
+    }
+
+    public function testServerTime($id = null) {
+	$user_id = $id ?? Auth::id();
+        $key = $this->getKeyByUserId($user_id);
+        if(!$key) return null;
+        $api = new BinanceAPI($key->api_key, $key->secret_key, env('BINANCE_API_URL'));
+
+	list($msec, $sec) = explode(' ', microtime());
+        $local = $sec.substr($msec, 2, 3);
+
+	$server_time = $api->getTime();
+	dump($server_time, $local);
+	return $server_time;
     }
 }
