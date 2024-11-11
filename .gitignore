@@ -21,3 +21,4 @@ yarn-error.log
 /mysql
 /apache
 Dockerfile.prod
+BinanceAPI.php
