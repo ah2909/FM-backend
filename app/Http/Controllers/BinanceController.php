@@ -39,7 +39,9 @@ class BinanceController extends Controller {
     public function getAssetDetails($id = null) {
         $user_id = $id ?? Auth::id();
         $key = $this->getKeyByUserId($user_id);
-        if(!$key) return null;
+
+        if(!$key) return response()->json([ 'redirect' => '/account' ], 200);
+
         $api = new BinanceAPI($key->api_key, $key->secret_key, env('BINANCE_API_URL'));
         $assets = $api->getAccountInfo();
      
