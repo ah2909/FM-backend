@@ -389,9 +389,9 @@ class BinanceAPI
      */
     private function milliseconds()
     {
-        // list($msec, $sec) = explode(' ', microtime());
+        list($msec, $sec) = explode(' ', microtime());
 
-        // return $sec.substr($msec, 2, 3);
-	return time() * 1000 -3000;
+        return $sec.substr($msec, 2, 3);
+	    // return time() * 1000 -3000;
     }
 }
