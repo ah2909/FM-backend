@@ -4,6 +4,7 @@ namespace App\Http\Ultilities;
 
 use Exception;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\Http;
 
 class BinanceAPI
@@ -15,12 +16,12 @@ class BinanceAPI
     protected $synced = false;
     protected $response = null;
     protected $no_time_needed = [
-        '/v1/system/status',
-        '/v3/time',
-        '/v3/exchangeInfo',
-        '/v3/trades',
-        '/v3/avgPrice',
-        '/v3/ticker/24hr',
+        '/api/v1/system/status',
+        '/api/v3/time',
+        '/api/v3/exchangeInfo',
+        '/api/v3/trades',
+        '/api/v3/avgPrice',
+        '/api/v3/ticker/24hr',
     ];
 
     /**
@@ -31,7 +32,7 @@ class BinanceAPI
      * @param string $api_url API base URL (see config for example)
      * @param int    $timing  Binance API timing setting (default 10000)
      */
-    public function __construct($api_key = null, $api_secret = null, $api_url = null, $timing = 50000)
+    public function __construct($api_key = null, $api_secret = null, $api_url = null, $timing = 5000)
     {
         $this->api_key = $api_key;
         $this->api_secret = $api_secret;
@@ -84,7 +85,7 @@ class BinanceAPI
      */
     public function getTime()
     {
-        return $this->publicRequest('/v3/time');
+        return $this->publicRequest('/api/v3/time');
     }
 
     /**
@@ -100,7 +101,7 @@ class BinanceAPI
             'symbol' => $symbol ? strtoupper($symbol) : null,
         ];
 
-        return $this->publicRequest('/v3/exchangeInfo', $data);
+        return $this->publicRequest('/api/v3/exchangeInfo', $data);
     }
 
     /**
@@ -116,7 +117,7 @@ class BinanceAPI
             'symbol' => $symbol ? strtoupper($symbol) : null,
         ];
 
-        return $this->publicRequest('/v3/trades', $data);
+        return $this->publicRequest('/api/v3/trades', $data);
     }
 
     /**
@@ -132,7 +133,7 @@ class BinanceAPI
             'symbol' => $symbol ? strtoupper($symbol) : null,
         ];
 
-        return $this->publicRequest('/v3/avgPrice', $data);
+        return $this->publicRequest('/api/v3/avgPrice', $data);
     }
 
     /**
@@ -150,7 +151,7 @@ class BinanceAPI
             'symbol' => $symbol,
         ];
 
-        return $this->publicRequest('/v3/ticker/24hr', $data);
+        return $this->publicRequest('/api/v3/ticker/24hr', $data);
     }
 
     //------ PRIVATE API CALLS ----------
@@ -175,7 +176,7 @@ class BinanceAPI
      */
     public function getAccountInfo()
     {
-        $response = $this->privateRequest('/v3/account', ['omitZeroBalances' => 'true']);
+        $response = $this->privateRequest('/api/v3/account', ['omitZeroBalances' => 'true']);
         return $response;
     }
 
@@ -192,7 +193,7 @@ class BinanceAPI
             'symbol' => $symbol ? strtoupper($symbol) : null,
         ];
 
-        return $this->privateRequest('/v3/allOrders', $data);
+        return $this->privateRequest('/api/v3/allOrders', $data);
     }
 
     /**
@@ -209,7 +210,7 @@ class BinanceAPI
             'symbol' => $symbol ? strtoupper($symbol) : null,
         ];
 
-        return $this->privateRequest('/v3/openOrders', $data);
+        return $this->privateRequest('/api/v3/openOrders', $data);
     }
 
     /**
@@ -225,7 +226,7 @@ class BinanceAPI
             'symbol' => $symbol ? strtoupper($symbol) : null,
         ];
 
-        return $this->privateRequest('/v3/myTrades', $data);
+        return $this->privateRequest('/api/v3/myTrades', $data);
     }
 
     /**
@@ -243,7 +244,12 @@ class BinanceAPI
             'orderId' => $orderId,
         ];
 
-        return $this->privateRequest('/v3/order', $data);
+        return $this->privateRequest('/api/v3/order', $data);
+    }
+
+    public function getUserAsset()
+    {
+        return $this->privateRequest('/sapi/v3/asset/getUserAsset', [], 'POST');
     }
 
     /**
