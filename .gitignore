@@ -20,5 +20,3 @@ yarn-error.log
 /.vscode
 /mysql
 /apache
-Dockerfile.prod
-BinanceAPI.php
