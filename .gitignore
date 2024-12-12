@@ -20,5 +20,6 @@ yarn-error.log
 /.vscode
 /mysql
 /apache
-Dockerfile.prod
+Dockerfile
+docker-compose.yml
 BinanceAPI.php
