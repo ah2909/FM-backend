@@ -35,7 +35,7 @@ class StoreUserBalance extends Command
     		$balance = $this->binanceController->getAssetDetails($user->id);
     		if(!$balance) continue;
     		$data = $balance->getData();
-		if(!property_exists($data, 'total')) continue;
+            if(!property_exists($data, 'total')) continue;
     		// Store the balance in the database
     		DB::table('cron_data')->insert([
         		'asset_balance' => $data->total,

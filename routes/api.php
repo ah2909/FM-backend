@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('binance-key')->group(function () {
         Route::get('', [BinanceController::class, 'getKeyByUserId']);
         Route::get('/assets', [BinanceController::class, 'getAssetDetails']);
+        Route::get('/transactions', [BinanceController::class, 'getHistoryTransaction']);
         Route::post('', [BinanceController::class, 'store']);
     });
 });
