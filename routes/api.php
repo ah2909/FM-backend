@@ -1,17 +1,18 @@
 <?php
 
 use App\Http\Controllers\AssetController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BinanceController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\TransactionController;
-use App\Models\Category;
-
-// Route::get('/user', function (Request $request) {
-//     return $request->user();
-// })->middleware('auth:sanctum');
+use Laravel\Socialite\Facades\Socialite;
+ 
+// Route::get('/auth/redirect', function () {
+//     return Socialite::driver('google')->redirect();
+// });
+ 
+// Route::get('/auth/callback', [AuthController::class, 'googleLogin']);
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
