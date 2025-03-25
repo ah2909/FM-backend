@@ -56,21 +56,4 @@ class AuthController extends Controller
             ]
         );
     }
-
-    // public function googleLogin() {
-    //     $user = Socialite::driver('google')->user();
- 
-    //     $user = User::updateOrCreate([
-    //         'id' => $user->id,
-    //     ], [
-    //         'name' => $user->name,
-    //         'email' => $user->email,
-    //         'github_token' => $user->token,
-    //         'github_refresh_token' => $user->refreshToken,
-    //     ]);
-    
-    //     Auth::login($user);
-    
-    //     return redirect('/dashboard');
-    // }
 }

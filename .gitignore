@@ -23,3 +23,4 @@ yarn-error.log
 Dockerfile
 docker-compose.yml
 BinanceAPI.php
+*.sh

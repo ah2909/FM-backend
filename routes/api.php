@@ -3,16 +3,9 @@
 use App\Http\Controllers\AssetController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\BinanceController;
-use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\TransactionController;
-use Laravel\Socialite\Facades\Socialite;
+use App\Http\Controllers\ExchangeController;
+use App\Http\Controllers\PortfolioController;
  
-// Route::get('/auth/redirect', function () {
-//     return Socialite::driver('google')->redirect();
-// });
- 
-// Route::get('/auth/callback', [AuthController::class, 'googleLogin']);
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -20,22 +13,13 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    Route::prefix('transactions')->group(function () {
-        Route::post('/statistics', [TransactionController::class, 'transactionStatisticsInRange']);
-        Route::get('', [TransactionController::class, 'index']);
-        Route::get('/{transaction_id}', [TransactionController::class, 'show']);
-        Route::post('', [TransactionController::class, 'store']);
-        Route::put('/{transaction_id}', [TransactionController::class, 'update']);
-        Route::delete('/{transaction_id}', [TransactionController::class, 'destroy']);
-    });
-
-    Route::prefix('category')->group(function () {
-        Route::get('/{typ}', [CategoryController::class, 'showCategoryByType']);
-        Route::get('', [CategoryController::class, 'index']);
-        Route::get('/{category_id}', [CategoryController::class, 'show']);
-        Route::post('', [CategoryController::class, 'store']);
-        Route::put('/{category_id}', [CategoryController::class, 'update']);
-        Route::delete('/{category_id}', [CategoryController::class, 'destroy']);
+    Route::prefix('portfolio')->group(function () {
+        Route::get('', [PortfolioController::class, 'getPortByUserID']);
+        Route::post('', [PortfolioController::class, 'store']);
+        Route::put('/{portfolio_id}', [PortfolioController::class, 'update']);
+        Route::delete('/{portfolio_id}', [PortfolioController::class, 'destroy']);
+        Route::post('/asset', [PortfolioController::class, 'addTokenToPort']);
+        Route::post('/asset/remove', [PortfolioController::class, 'removeTokenfromPort']);
     });
 
     Route::prefix('asset')->group(function () {
@@ -43,10 +27,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('', [AssetController::class, 'store']);
     });
 
-    Route::prefix('binance-key')->group(function () {
-        Route::get('', [BinanceController::class, 'getKeyByUserId']);
-        Route::get('/assets', [BinanceController::class, 'getAssetDetails']);
-        Route::get('/transactions', [BinanceController::class, 'getHistoryTransaction']);
-        Route::post('', [BinanceController::class, 'store']);
+    Route::prefix('exchange')->group(function () {
+        Route::get('/supported-cex', [ExchangeController::class, 'get_supported_cex']);
+        Route::post('/connect', [ExchangeController::class, 'connect_cex']);
+        Route::get('/info', [ExchangeController::class, 'get_info_from_cex']);
     });
 });
