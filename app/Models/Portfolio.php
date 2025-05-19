@@ -37,15 +37,11 @@ class Portfolio extends Model
 		'user_id'
 	];
 	
-	public function user()
-	{
-		return $this->belongsTo(User::class);
-	}
 
 	public function assets()
 	{
 		return $this->belongsToMany(Asset::class, 'portfolio_asset')
-					->withPivot('amount')
+					->withPivot('amount', 'avg_price')
 					->withTimestamps();
 	}
 

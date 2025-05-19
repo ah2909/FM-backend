@@ -53,11 +53,6 @@ class Transaction extends Model
 		return $this->belongsTo(Asset::class);
 	}
 
-	public function exchange()
-	{
-		return $this->belongsTo(Exchange::class);
-	}
-
 	public function portfolio()
 	{
 		return $this->belongsTo(Portfolio::class);

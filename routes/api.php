@@ -2,16 +2,11 @@
 
 use App\Http\Controllers\AssetController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ExchangeController;
 use App\Http\Controllers\PortfolioController;
- 
+use App\Http\Middleware\JWTAuth;
 
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout']);
+Route::middleware([JWTAuth::class])->group(function () {
 
     Route::prefix('portfolio')->group(function () {
         Route::get('', [PortfolioController::class, 'getPortByUserID']);
@@ -19,6 +14,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{portfolio_id}', [PortfolioController::class, 'update']);
         Route::delete('/{portfolio_id}', [PortfolioController::class, 'destroy']);
         Route::post('/asset', [PortfolioController::class, 'addTokenToPort']);
+        Route::post('/asset/add-manual', [PortfolioController::class, 'addTokenToPortManual']);
         Route::post('/asset/remove', [PortfolioController::class, 'removeTokenfromPort']);
     });
 
@@ -31,5 +27,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/supported-cex', [ExchangeController::class, 'get_supported_cex']);
         Route::post('/connect', [ExchangeController::class, 'connect_cex']);
         Route::get('/info', [ExchangeController::class, 'get_info_from_cex']);
+        // Route::post('/transaction', [ExchangeController::class, 'get_history_transaction']);
+    });
+
+    Route::prefix('user')->group(function () {
+        Route::get('/info', function () {
+            return response()->json(['user' => request()->attributes->get('user')]);
+        });
     });
 });

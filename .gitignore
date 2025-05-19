@@ -18,9 +18,6 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
-/mysql
+/backend-data
 /apache
-Dockerfile
-docker-compose.yml
-BinanceAPI.php
-*.sh
+
