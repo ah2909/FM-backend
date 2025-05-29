@@ -3,18 +3,18 @@
 namespace App\Services;
 
 use App\Models\Exchange;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class ExchangeService
 {
     protected $exchange;
-    protected $keys;
+    protected $credentials;
 
     public function __construct()
     {
-        ini_set('memory_limit', '512M');
         $userId = request()->get('user')->id;
         $keys = Exchange::where('user_id', $userId)->get();
         if ($keys) {
@@ -24,59 +24,32 @@ class ExchangeService
 
                 switch ($key->cex_id) {
                     case config('exchanges.binance_id'):
-                        $this->exchange['binance'] = new \ccxt\binance([
-                            'apiKey' => $apiKey,
-                            'secret' => $secretKey,
-                            'enableRateLimit' => false,
-                        ]);
-                        $this->keys['binance'] = $key;
-                        $this->loadMarketsWithCache('binance');
+                        $this->exchange[] = 'binance';
+                        $this->credentials['binance'] = [
+                            'api_key' => $apiKey,
+                            'api_secret' => $secretKey,
+                        ];
                         break;
 
                     case config('exchanges.okx_id'):
-                        $this->exchange['okx'] = new \ccxt\okx([
-                            'apiKey' => $apiKey,
-                            'secret' => $secretKey,
+                        $this->exchange[] = 'okx';
+                        $this->credentials['okx'] = [
+                            'api_key' => $apiKey,
+                            'api_secret' => $secretKey,
                             'password' => 'crypto-portfolioV1',
-                            'enableRateLimit' => false,
-                        ]);
-                        $this->keys['okx'] = $key;
-                        $this->loadMarketsWithCache('okx');
+                        ];
                         break;
 
                     case config('exchanges.bybit_id'):
-                        $this->exchange['bybit'] = new \ccxt\bybit([
-                            'apiKey' => $apiKey,
-                            'secret' => $secretKey,
-                            'enableRateLimit' => false,
-                        ]);
-                        $this->keys['bybit'] = $key;
-                        $this->loadMarketsWithCache('bybit');
+                        $this->exchange[] = 'bybit';
+                        $this->credentials['bybit'] = [
+                            'api_key' => $apiKey,
+                            'api_secret' => $secretKey,                           
+                        ];
                         break;
                 }
             }
         }
-    }
-
-    /**
-     * Load markets with cache support
-     * @param string $exchangeName
-     * @return \React\Promise\PromiseInterface
-     */
-    protected function loadMarketsWithCache(string $exchangeName)
-    {
-        $cacheKey = "markets_{$exchangeName}_{$this->keys[$exchangeName]->user_id}";
-        $cachedMarkets = Cache::get($cacheKey);
-
-        if ($cachedMarkets) {
-            $this->exchange[$exchangeName]->markets = json_decode($cachedMarkets, true);
-            return true;
-        }
-
-        $markets = $this->exchange[$exchangeName]->load_markets();
-        Cache::put($cacheKey, json_encode($markets), now()->addHours(1));
-
-        return true;
     }
 
     public function getBalances()
@@ -85,23 +58,27 @@ class ExchangeService
         $stablecoins = ['USDT', 'USDC'];
         $results = [];
 
-        foreach ($this->exchange as $exchangeName => $exchangeInstance) {
-            try {
-                $balance = $exchangeInstance->fetch_balance(['omitZeroBalances' => true]);
+        $response = Http::post(env('CEX_SERVICE_URL') . '/cex/portfolio', [
+            'credentials' => $this->credentials,
+            'exchanges' => $this->exchange,
+        ])->throw()->json();
 
+        foreach ($response['data'] as $exchangeName => $balance) {
+            try {
                 // Prepare symbols list for tickers
                 $listSymbols = [];
                 foreach ($balance['total'] as $currency => $amount) {
                     if ($amount <= 0) continue;
-                    if (isset($exchangeInstance->markets[$currency . '/USDT'])) {
-                        $listSymbols[] = strtoupper($currency) . '/USDT';
-                    }
+                    $listSymbols[] = strtoupper($currency) . '/USDT'; 
                 }
 
                 // Fetch tickers only for non-empty balances
                 $tickers = [];
                 if (!empty($listSymbols)) {
-                    $tickers = $exchangeInstance->fetch_tickers($listSymbols);
+                    $response = Http::post(env('CEX_SERVICE_URL') . '/cex/ticker', [
+                        'symbols' => $listSymbols
+                    ])->throw()->json();
+                    $tickers = $response['data'] ?? [];
                 }
 
                 $results[$exchangeName] = [
@@ -170,14 +147,10 @@ class ExchangeService
                 return strtoupper($a['symbol']) . '/USDT';
             }, $assets->toArray());
 
-            if (isset($this->exchange['binance'])) {
-                $tickers = $this->exchange['binance']->fetch_tickers($listSymbols);
-            } else if (isset($this->exchange['okx'])) {
-                $tickers = $this->exchange['okx']->fetch_tickers($listSymbols);
-            }
-            else {
-                throw new \Exception("No exchange instance available for fetching tickers.");
-            }
+            $response = Http::post(env('CEX_SERVICE_URL') . '/cex/ticker', [
+                'symbols' => $listSymbols
+            ])->throw()->json();
+            $tickers = $response['data'] ?? [];
 
             $result = [];
             foreach ($assets as $asset) {
@@ -199,69 +172,30 @@ class ExchangeService
         }
     }
 
-    public function getPurchaseInfo($symbol, $exchangeName)
-    {
-        try {
-            $purchases = [
-                'total_amount' => 0,
-                'total_cost' => 0,
-                'purchase_dates' => [],
-            ];
-            $trades = $this->exchange[$exchangeName]->fetch_my_trades($symbol);
-            // If no symbols are provided, fetch all trades
-
-            foreach ($trades as $trade) {
-                if ($trade['side'] === 'buy') { // Only consider buy trades
-                    $price = $trade['price'];
-                    $amount = $trade['amount'];
-                    // $timestamp = $trade['timestamp']; // Purchase timestamp
-                    // $date = date('Y-m-d H:i:s', $timestamp / 1000); // Convert to readable date
-
-                    // Accumulate total amount and cost
-                    $purchases['total_amount'] += $amount;
-                    $purchases['total_cost'] += $amount * $price;
-                    // $purchases['purchase_dates'][] = $date;
-                }
-            }
-
-            // Calculate average purchase price for each asset
-            $result = [];
-            if ($purchases['total_amount'] === 0) return null;
-            $averagePrice = $purchases['total_cost'] / $purchases['total_amount'];
-            $result = [
-                'average_purchase_price' => $averagePrice,
-                'total_amount' => $purchases['total_amount'],
-                'total_cost' => $purchases['total_cost'],
-            ];
-
-
-            return $result;
-        } catch (\Exception $e) {
-            Log::error("Binance transaction info fetch failed: {$e->getMessage()}");
-            return null;
-        }
-    }
-
     public function getSymbolTransactions($symbols)
     {
         $allTrades = [];
-        foreach ($symbols as $symbol) {
+        $trades = Http::pool(function (Pool $pool) use ($symbols) {
+            return array_map(fn ($s) => $pool->post(env('CEX_SERVICE_URL') . '/cex/transaction', [
+                'symbol' => $s['name'],
+                'exchanges' => $s['exchange'] ?? 'binance', // Default to binance if not specified
+                'credentials' => $this->credentials,
+            ]), $symbols);
+        });
+
+        foreach ($symbols as $index => $symbol) {
             try {
-                // Format symbol if necessary (e.g., 'BTC/USDT') - CCXT usually handles this
-                // $formattedSymbol = strtoupper(str_replace('-', '/', $symbol));
-                foreach ($symbol['exchange'] as $exchange) {
-                    $trades = $this->exchange[$exchange]->fetch_my_trades($symbol['name'], null); // (symbol, since, limit, params)
-                    $formattedTrades = array_map(function ($trade) {
-                        return [
-                            'symbol' => $trade['symbol'],
-                            'type' => $trade['side'],
-                            'price' => $trade['price'],
-                            'quantity' => $trade['amount'],
-                            'cost' => $trade['cost'],
-                            'transact_date' => date('Y-m-d H:i:s', $trade['timestamp'] / 1000),
-                        ];
-                    }, $trades);
-                }
+                $formattedTrades = array_map(function ($trade) {
+                    return [
+                        'symbol' => $trade['symbol'],
+                        'type' => $trade['side'],
+                        'price' => $trade['price'],
+                        'quantity' => $trade['amount'],
+                        'cost' => $trade['cost'],
+                        'transact_date' => date('Y-m-d H:i:s', $trade['timestamp'] / 1000),
+                        'exchange' => $trade['exchange'] ?? 'binance', // Default to binance if not specified
+                    ];
+                }, $trades[$index]->json()['data'] ?? []);
                 
                 // Add the fetched trades to our results array, keyed by symbol
                 $allTrades[$symbol['name']] = $formattedTrades;

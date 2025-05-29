@@ -35,7 +35,10 @@ class PortfolioController extends Controller
     {
         try {
             $user_id = request()->attributes->get('user')->id;
-            $portfolio = Portfolio::where('user_id', $user_id)->first();
+            $portfolio = Portfolio::with([
+                'assets',
+                'transactions'
+            ])->where('user_id', $user_id)->first();
             
             if (!$portfolio) {
                 return $this->successResponse([]);
@@ -53,7 +56,8 @@ class PortfolioController extends Controller
                 return $asset;
             });
             $priceData = $this->exchangeService->getPriceOfPort($portfolio->assets);
-            $portfolio = $this->portfolioService->calculatePortfolioValue($portfolio, $priceData);          
+            $portfolio = $this->portfolioService->calculatePortfolioValue($portfolio, $priceData);
+                    
             return $this->successResponse($portfolio);
         } catch (\Exception $e) {
             return $this->handleException($e, ['user_id' => $user_id]);
@@ -153,8 +157,9 @@ class PortfolioController extends Controller
                 $listAvgPrice[] = $this->portfolioService->calculateAvgPrice($symbolTransactions);
 
                 foreach ($symbolTransactions as $transaction) {
+                    $exchange_id = config('exchanges.' . strtolower($transaction['exchange']) . '_id');
                     $formattedTransactions[] = [
-                        'exchange_id' => config('exchanges.binance_id'), // Binance
+                        'exchange_id' => $exchange_id,
                         'portfolio_id' => $portfolio->id,
                         'asset_id' => $assetID,
                         'quantity' => $transaction['quantity'],
@@ -196,16 +201,9 @@ class PortfolioController extends Controller
            
             $portfolio->assets()->attach($tokenID, ['amount' => $validatedData['token']['amount']]);
 
-            return response()->json([
-                'message' => 'Add token to portfolio successfully',
-            ], 201);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $e->errors(),
-            ], 422);
-        }catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to add token'], 400);
+            return $this->successResponse(null, 'Add token to portfolio successfully', 201);
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['token' => $validatedData['token']]);
         }
     }
 
@@ -223,16 +221,9 @@ class PortfolioController extends Controller
             $tokenID = $this->assetService->checkAssetExists($validatedData['token']);
             $portfolio->assets()->detach($tokenID);
 
-            return response()->json([
-                'message' => 'Remove token from portfolio successfully',
-            ], 200);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $e->errors(),
-            ], 422);
-        }catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to remove token'], 400);
+            return $this->successResponse(null, 'Remove token from portfolio successfully', 200);
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['token' => $validatedData['token']]);
         }
     }
 }

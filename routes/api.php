@@ -27,7 +27,6 @@ Route::middleware([JWTAuth::class])->group(function () {
         Route::get('/supported-cex', [ExchangeController::class, 'get_supported_cex']);
         Route::post('/connect', [ExchangeController::class, 'connect_cex']);
         Route::get('/info', [ExchangeController::class, 'get_info_from_cex']);
-        // Route::post('/transaction', [ExchangeController::class, 'get_history_transaction']);
     });
 
     Route::prefix('user')->group(function () {
