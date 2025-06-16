@@ -206,4 +206,14 @@ class ExchangeService
 
         return $allTrades;
     }
+
+    public function syncTransactions($symbols, $since) {
+        $response = Http::post(env('CEX_SERVICE_URL') . '/cex/sync-transactions', [
+            'credentials' => $this->credentials,
+            'exchanges' => $this->exchange,
+            'symbols' => $symbols,
+            'since' => $since,
+        ])->throw()->json();
+        return $response['data'] ?? [];
+    }
 }

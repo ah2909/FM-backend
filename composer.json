@@ -6,7 +6,6 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
-        "ccxt/ccxt": "^4.4",
         "firebase/php-jwt": "^6.11",
         "laravel/framework": "^11.9",
         "laravel/sanctum": "^4.0",

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SyncTransactions;
 use App\Models\Portfolio;
 use App\Models\Transaction;
 use App\Services\AssetService;
@@ -10,8 +11,10 @@ use App\Services\PortfolioService;
 use App\Traits\ApiResponse;
 use App\Traits\ErrorHandler;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Str;
 
 class PortfolioController extends Controller
 {
@@ -31,6 +34,20 @@ class PortfolioController extends Controller
         $this->portfolioService = $portfolioService;
     }
 
+    public function calculatePortfolioBalance($portfolio) {
+        $portfolio->assets = $portfolio->assets->map(function($asset) {
+            if (isset($asset->pivot->amount)) {
+                $asset->amount = $asset->pivot->amount;
+                $asset->avg_price = $asset->pivot->avg_price;
+                unset($asset->pivot);
+            }
+            return $asset;
+        });
+        $priceData = $this->exchangeService->getPriceOfPort($portfolio->assets);
+        $portfolio = $this->portfolioService->calculatePortfolioValue($portfolio, $priceData);
+        return $portfolio;
+    }
+
     public function getPortByUserID()
     {
         try {
@@ -47,16 +64,7 @@ class PortfolioController extends Controller
                 return $this->successResponse($portfolio);
             }
 
-            $portfolio->assets = $portfolio->assets->map(function($asset) {
-                if (isset($asset->pivot->amount)) {
-                    $asset->amount = $asset->pivot->amount;
-                    $asset->avg_price = $asset->pivot->avg_price;
-                    unset($asset->pivot);
-                }
-                return $asset;
-            });
-            $priceData = $this->exchangeService->getPriceOfPort($portfolio->assets);
-            $portfolio = $this->portfolioService->calculatePortfolioValue($portfolio, $priceData);
+            $portfolio = $this->calculatePortfolioBalance($portfolio);
                     
             return $this->successResponse($portfolio);
         } catch (\Exception $e) {
@@ -220,10 +228,35 @@ class PortfolioController extends Controller
             $portfolio = Portfolio::findOrFail($request['portfolio_id']);
             $tokenID = $this->assetService->checkAssetExists($validatedData['token']);
             $portfolio->assets()->detach($tokenID);
+            foreach ($tokenID as $token) {
+                $portfolio->transactions()->where('asset_id', $token->id)->delete();
+            }
 
             return $this->successResponse(null, 'Remove token from portfolio successfully', 200);
         } catch (\Exception $e) {
             return $this->handleException($e, ['token' => $validatedData['token']]);
+        }
+    }
+
+    public function syncPortfolioTransactions(Request $request) {
+        /*
+            $portfolio_id: int
+        */
+        try {
+            $validatedData = $request->validate([
+                'portfolio_id' => 'required|integer',
+            ]);
+            $portfolio = Portfolio::findOrFail($validatedData['portfolio_id']);
+            $jobId = "{$request->get('user')->id}_{$portfolio->id}";
+            $cachedJob = Cache::get("sync_transactions_{$jobId}");
+            if($cachedJob) {
+                return $this->successResponse(['status' => 'success'], 'Portfolio transactions are already synced', 200);
+            }
+
+            SyncTransactions::dispatch($this->exchangeService, $jobId, $portfolio);  
+            return $this->successResponse(['status' => 'syncing', 'job_id' => $jobId], 'Portfolio transactions are syncing', 200);
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['portfolio_id' => $validatedData['portfolio_id']]);
         }
     }
 }
