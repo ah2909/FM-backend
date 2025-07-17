@@ -21,6 +21,7 @@ class ExchangeService
             foreach ($keys as $key) {
                 $apiKey = Crypt::decryptString($key['api_key']);
                 $secretKey = Crypt::decryptString($key['secret_key']);
+                $password = isset($key['password']) ? Crypt::decryptString($key['password']) : null;
 
                 switch ($key->cex_id) {
                     case config('exchanges.binance_id'):
@@ -36,7 +37,7 @@ class ExchangeService
                         $this->credentials['okx'] = [
                             'api_key' => $apiKey,
                             'api_secret' => $secretKey,
-                            'password' => 'crypto-portfolioV1',
+                            'password' => $password,
                         ];
                         break;
 
@@ -139,39 +140,6 @@ class ExchangeService
         return $assets;
     }
 
-    //Default exchange is binance
-    public function getPriceOfPort($assets)
-    {
-        try {
-            $listSymbols = array_map(function ($a) {
-                return strtoupper($a['symbol']) . '/USDT';
-            }, $assets->toArray());
-
-            $response = Http::post(env('CEX_SERVICE_URL') . '/cex/ticker', [
-                'symbols' => $listSymbols
-            ])->throw()->json();
-            $tickers = $response['data'] ?? [];
-
-            $result = [];
-            foreach ($assets as $asset) {
-                $price = null;
-                $formattedSymbol = strtoupper($asset->symbol) . '/USDT';
-                if (isset($tickers[$formattedSymbol])) {
-                    $price = $tickers[$formattedSymbol]['last'];
-                }
-
-                $result[$asset->symbol] = [
-                    'price' => $price,
-                    'value' => $price !== null ? $price * $asset->amount : null
-                ];
-            }
-            return $result;
-        } catch (\Exception $e) {
-            Log::error("Fetch price of portfolio failed: {$e->getMessage()}");
-            return null;
-        }
-    }
-
     public function getSymbolTransactions($symbols)
     {
         $allTrades = [];
@@ -207,12 +175,13 @@ class ExchangeService
         return $allTrades;
     }
 
-    public function syncTransactions($symbols, $since) {
+    public function syncTransactions($symbols, $since, $userId) {
         $response = Http::post(env('CEX_SERVICE_URL') . '/cex/sync-transactions', [
             'credentials' => $this->credentials,
             'exchanges' => $this->exchange,
             'symbols' => $symbols,
             'since' => $since,
+            'user_id' => $userId,
         ])->throw()->json();
         return $response['data'] ?? [];
     }

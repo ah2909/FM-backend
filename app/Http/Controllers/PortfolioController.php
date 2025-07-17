@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Str;
+
 
 class PortfolioController extends Controller
 {
@@ -43,7 +43,7 @@ class PortfolioController extends Controller
             }
             return $asset;
         });
-        $priceData = $this->exchangeService->getPriceOfPort($portfolio->assets);
+        $priceData = $this->portfolioService->getPriceOfPort($portfolio->assets);
         $portfolio = $this->portfolioService->calculatePortfolioValue($portfolio, $priceData);
         return $portfolio;
     }
@@ -143,8 +143,8 @@ class PortfolioController extends Controller
             
             foreach ($validatedData['token'] as $token) {
                 $tmp = $this->assetService->checkAssetExists($token['symbol']);
-                if ($tmp->isEmpty()) {
-                    //Search in coingecko and add to database
+                if (!$tmp) {
+                    throw new \Exception("Token {$token['symbol']} not found.");
                 }
                 else {
                     $listTokenID[] = $tmp[0]['id'];
@@ -162,7 +162,7 @@ class PortfolioController extends Controller
                 $assetID = $listTokenID[$index];
                 $symbolTransactions = $transactions[$symbol['name']];
             
-                $listAvgPrice[] = $this->portfolioService->calculateAvgPrice($symbolTransactions);
+                $listAvgPrice[] = PortfolioService::calculateAvgPrice($symbolTransactions);
 
                 foreach ($symbolTransactions as $transaction) {
                     $exchange_id = config('exchanges.' . strtolower($transaction['exchange']) . '_id');
@@ -184,6 +184,9 @@ class PortfolioController extends Controller
                 ['amount' => $amount, 'avg_price' => $avgPrice['average_price']], $listTokenAmount, $listAvgPrice));
                 $portfolio->assets()->attach($assetsToAttach);
             });
+            foreach($listTokenID as $assetId) {
+                PortfolioService::storeRecentActivity($request->attributes->get('user')->id, 'Add asset', $assetId);
+            }
 
             return $this->successResponse(null, 'Token added to portfolio successfully', 201);     
         } catch (\Exception $e) {
@@ -204,7 +207,7 @@ class PortfolioController extends Controller
             $portfolio = Portfolio::findOrFail($request['portfolio_id']);
             $tokenID = $this->assetService->checkAssetExists($validatedData['token']['symbol']);
             if (!$tokenID) {
-                //Search in coingecko and add to database
+                throw new \Exception("Token {$validatedData['token']['symbol']} not found.");
             }
            
             $portfolio->assets()->attach($tokenID, ['amount' => $validatedData['token']['amount']]);
@@ -230,6 +233,7 @@ class PortfolioController extends Controller
             $portfolio->assets()->detach($tokenID);
             foreach ($tokenID as $token) {
                 $portfolio->transactions()->where('asset_id', $token->id)->delete();
+                PortfolioService::storeRecentActivity($request->attributes->get('user')->id, 'Remove asset', $token->id);
             }
 
             return $this->successResponse(null, 'Remove token from portfolio successfully', 200);
@@ -253,10 +257,45 @@ class PortfolioController extends Controller
                 return $this->successResponse(['status' => 'success'], 'Portfolio transactions are already synced', 200);
             }
 
-            SyncTransactions::dispatch($this->exchangeService, $jobId, $portfolio);  
+            SyncTransactions::dispatch($this->exchangeService, $jobId, $portfolio, $request->get('user')->id);
             return $this->successResponse(['status' => 'syncing', 'job_id' => $jobId], 'Portfolio transactions are syncing', 200);
         } catch (\Exception $e) {
             return $this->handleException($e, ['portfolio_id' => $validatedData['portfolio_id']]);
+        }
+    }
+
+    public function getBalanceByUserID()
+    {
+        try {
+            $user_id = request()->attributes->get('user')->id;
+            $balance = DB::table('portfolio_balance')->select(['balance', 'date'])
+                ->where('user_id', $user_id)
+                ->orderBy('date', 'desc')
+                ->get();
+            
+            if (!$balance) {
+                return $this->successResponse([]);
+            }              
+            return $this->successResponse($balance);
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['user_id' => $user_id]);
+        }
+    }
+
+    public function getRecentActivity()
+    {
+        try {
+            $user_id = request()->attributes->get('user')->id;
+            $recentActivities = DB::table('recent_activity')
+                ->join('assets', 'recent_activity.asset_id', '=', 'assets.id')
+                ->select('recent_activity.*', 'assets.symbol', 'assets.img_url', 'assets.name')
+                ->where('user_id', $user_id)
+                ->orderBy('recent_activity.created_at', 'desc')
+                ->get();
+            
+            return $this->successResponse($recentActivities);
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['user_id' => $user_id]);
         }
     }
 }

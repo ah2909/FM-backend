@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\UpdatePortfolioAssets;
 use App\Models\Exchange;
 use App\Services\ExchangeService;
-use App\Services\OkxService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use App\Traits\ApiResponse;
 use App\Traits\ErrorHandler;
+use Illuminate\Support\Facades\Redis;
 
 class ExchangeController extends Controller
 {
@@ -47,19 +48,27 @@ class ExchangeController extends Controller
                 'cex_name' => 'required|string|max:50',
                 'api_key' => 'required|string',
                 'secret_key' => 'required|string',
+                'password' => 'nullable|string',
             ]);
 
             $cex_id = DB::select('select id from CEXs where name = ?', [$validatedData['cex_name']]);
             $user_id = $request->attributes->get('user')->id;
-            $exchange = Exchange::create([
+            Exchange::create([
                 'cex_id' => $cex_id[0]->id,
                 'api_key'=> Crypt::encryptString($validatedData['api_key']),
                 'secret_key' => Crypt::encryptString($validatedData['secret_key']),
+                'password' => isset($validatedData['password']) ? Crypt::encryptString($validatedData['password']) : null,
                 'user_id' => $user_id
             ]);
-            return response()->json([
-                'message' => 'Connect successfully'
-            ]);
+
+            $exchange = [strtolower($validatedData['cex_name'])];
+            $credentials[strtolower($validatedData['cex_name'])] = [
+                'api_key' => $validatedData['api_key'],
+                'api_secret' => $validatedData['secret_key'],
+                'password' => isset($validatedData['password']) ? $validatedData['password'] : null,
+            ];
+            // DO LATER
+            // UpdatePortfolioAssets::dispatch($exchange, $credentials, $user_id, $exchange[0]);
             return $this->successResponse([], 'Connect successfully', 201);
         }
         catch (\Throwable $th) {
@@ -71,7 +80,12 @@ class ExchangeController extends Controller
     }
 
     public function get_info_from_cex() {
-        try {     
+        try {    
+            $user_id = request()->attributes->get('user')->id; 
+            if (Redis::exists("cex_info_{$user_id}")) {
+                $data = json_decode(Redis::get("cex_info_{$user_id}"), true);
+                return $this->successResponse($data, 'Get info from CEX successfully');
+            }
             $balance = $this->exchangeService->getBalances();
             $asset = DB::select('select symbol, img_url from assets');
              
@@ -88,6 +102,7 @@ class ExchangeController extends Controller
                 }
             }
             $data = array_values($data);
+            Redis::set('cex_info_'.$user_id, json_encode($data), 'EX', 15 * 60);
             return $this->successResponse($data, 'Get info from CEX successfully');
         } catch (\Throwable $th) {
             return $this->handleException($th, []);

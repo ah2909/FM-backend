@@ -34,7 +34,6 @@ class Asset extends Model
 	public function portfolios()
 	{
 		return $this->belongsToMany(Portfolio::class, 'portfolio_asset')
-					->withPivot('id', 'quantity', 'purchase_price', 'purchase_date')
 					->withTimestamps();
 	}
 

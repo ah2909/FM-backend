@@ -35,6 +35,7 @@ class Exchange extends Model
 		'cex_id',
 		'api_key',
 		'secret_key',
+		'password',
 		'user_id'
 	];
 
