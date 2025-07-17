@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Controllers\BinanceController;
-use App\Models\User;
+use App\Models\Portfolio;
+use App\Services\PortfolioService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -15,36 +15,51 @@ class StoreUserBalance extends Command
      * @var string
      */
     protected $signature = 'app:store-user-balance';
-    
-    protected $description = 'Store the balance of each user to the database';
 
-    protected $binanceController;
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Store balance of each user daily';
 
-    public function __construct(BinanceController $binanceController)
+    protected $portfolioService;
+
+    public function __construct(PortfolioService $portfolioService)
     {
         parent::__construct();
-        $this->binanceController = $binanceController;
+        $this->portfolioService = $portfolioService;
     }
 
+    /**
+     * Execute the console command.
+     */
     public function handle()
     {
-	$users = User::all();
+        $portfolios = Portfolio::all();
 
-	foreach ($users as $user) {
-    		// Assuming you have a method to get the balance
-    		$balance = $this->binanceController->getAssetDetails($user->id);
-    		if(!$balance) continue;
-    		$data = $balance->getData();
-            if(!property_exists($data, 'total')) continue;
-    		// Store the balance in the database
-    		DB::table('cron_data')->insert([
-        		'asset_balance' => $data->total,
-        		'user_id' => $user->id,
-        		'created_at' => now(),
-        		'updated_at' => now(),
-    		]);
-	}
+        foreach ($portfolios as $portfolio) {
+           $portfolio->assets = $portfolio->assets->map(function($asset) {
+            if (isset($asset->pivot->amount)) {
+                $asset->amount = $asset->pivot->amount;
+                $asset->avg_price = $asset->pivot->avg_price;
+                unset($asset->pivot);
+            }
+            return $asset;
+            });
+            $priceData = $this->portfolioService->getPriceOfPort($portfolio->assets);
+            $portfolio = $this->portfolioService->calculatePortfolioValue($portfolio, $priceData);
+            
+            // Store the balance in the database
+            DB::table('portfolio_balance')->insert([
+                'balance' => $portfolio->totalValue,
+                'portfolio_id' => $portfolio->id,
+                'user_id' => $portfolio->user_id,
+                'date' => now(),
+            ]);
+        }
 
-        $this->info('User balances have been stored successfully.');
+        $this->info('Balance of portfolios have been stored successfully.');
+        
     }
 }

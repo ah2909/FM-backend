@@ -2,30 +2,59 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
-use Laravel\Sanctum\HasApiTokens;
 
+/**
+ * Class Transaction
+ * 
+ * @property int $id
+ * @property int $exchange_id
+ * @property int $portfolio_id
+ * @property int $asset_id
+ * @property float $quantity
+ * @property float $price
+ * @property string $type
+ * @property Carbon|null $transact_date
+ * @property Carbon $updated_at
+ * @property Carbon $created_at
+ * 
+ * @property Asset $asset
+ * @property Exchange $exchange
+ * @property Portfolio $portfolio
+ *
+ * @package App\Models
+ */
 class Transaction extends Model
 {
-    use HasFactory, HasApiTokens;
+	protected $table = 'transactions';
 
-    protected $table = 'transactions';
-    protected $fillable = [
-        'id',
-        'content',
-        'amount',
-        'type',
-        'user_id',
-        'category_id',
-	'created_at',
-    ];
+	protected $casts = [
+		'exchange_id' => 'int',
+		'portfolio_id' => 'int',
+		'asset_id' => 'int',
+		'quantity' => 'float',
+		'price' => 'float',
+		'transact_date' => 'datetime'
+	];
 
-    public function user() {
-        return $this->belongsTo(User::class);
-    }
+	protected $fillable = [
+		'exchange_id',
+		'portfolio_id',
+		'asset_id',
+		'quantity',
+		'price',
+		'type',
+		'transact_date'
+	];
 
-    public function category() {
-        return $this->belongsTo(Category::class);
-    }
+	public function asset()
+	{
+		return $this->belongsTo(Asset::class);
+	}
+
+	public function portfolio()
+	{
+		return $this->belongsTo(Portfolio::class);
+	}
 }
