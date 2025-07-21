@@ -41,13 +41,7 @@ class SyncTransactions implements ShouldQueue
                     ->map(fn ($asset) => strtoupper($asset) . '/USDT')
                     ->toArray();
         $listId = $this->portfolio->assets()->pluck('assets.id','symbol')->toArray();
-        $lastUpdated = $this->portfolio->last_updated;
-        if(!$lastUpdated) {
-            $lastTransaction = Transaction::where('portfolio_id', $this->portfolio->id)
-            ->orderBy('transact_date', 'desc')
-            ->first();
-            $lastUpdated = $lastTransaction ? $lastTransaction->transact_date : null;
-        }
+        $lastUpdated = $this->portfolio->last_updated ?? $this->portfolio->created_at;
         
         $transactions = $this->exchangeService->syncTransactions($symbols, $lastUpdated, $this->userId);
         if (empty($transactions)) {
