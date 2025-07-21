@@ -37,7 +37,7 @@ class UpdatePortfolioAssets implements ShouldQueue
     public function handle(): void
     {
         // Call websocket to fetchBalance of connected exchange
-        $response = Http::post(env('CEX_SERVICE_URL') . '/cex/portfolio', [
+        $response = Http::post(config('app.cex_service_url') . '/cex/portfolio', [
             'credentials' => $this->credentials,
             'exchanges' => $this->exchange,
         ])->throw()->json();
@@ -55,7 +55,7 @@ class UpdatePortfolioAssets implements ShouldQueue
         $listId = $portfolio->assets->pluck('id','symbol')->toArray();
         // Fetch transactions for the asset in the connected exchange
         $trades = Http::pool(function (Pool $pool) use ($portfolioSymbol) {
-            return array_map(fn ($s) => $pool->post(env('CEX_SERVICE_URL') . '/cex/transaction', [
+            return array_map(fn ($s) => $pool->post(config('app.cex_service_url') . '/cex/transaction', [
                 'symbol' => strtoupper($s) . '/USDT',
                 'exchanges' => $this->exchange,
                 'credentials' => $this->credentials,

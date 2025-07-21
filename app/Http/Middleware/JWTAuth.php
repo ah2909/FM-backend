@@ -34,7 +34,7 @@ class JWTAuth
     private function getPublicKey()
     {
         $jwk = Cache::remember('jwks_public_key', 60*24, function () {
-            $response = Http::get(env('AUTH_SERVICE_URL', 'http://localhost:8086') . '/.well-known/jwks.json');
+            $response = Http::get(config('app.auth_service_url') . '/.well-known/jwks.json');
             $jwks = $response->json();
             if (empty($jwks['keys'])) {
                 throw new \Exception('No keys found in JWKS response');

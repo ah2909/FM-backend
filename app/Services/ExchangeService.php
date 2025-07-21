@@ -59,7 +59,7 @@ class ExchangeService
         $stablecoins = ['USDT', 'USDC'];
         $results = [];
 
-        $response = Http::post(env('CEX_SERVICE_URL') . '/cex/portfolio', [
+        $response = Http::post(config('app.cex_service_url') . '/cex/portfolio', [
             'credentials' => $this->credentials,
             'exchanges' => $this->exchange,
         ])->throw()->json();
@@ -76,7 +76,7 @@ class ExchangeService
                 // Fetch tickers only for non-empty balances
                 $tickers = [];
                 if (!empty($listSymbols)) {
-                    $response = Http::post(env('CEX_SERVICE_URL') . '/cex/ticker', [
+                    $response = Http::post(config('app.cex_service_url') . '/cex/ticker', [
                         'symbols' => $listSymbols
                     ])->throw()->json();
                     $tickers = $response['data'] ?? [];
@@ -144,7 +144,7 @@ class ExchangeService
     {
         $allTrades = [];
         $trades = Http::pool(function (Pool $pool) use ($symbols) {
-            return array_map(fn ($s) => $pool->post(env('CEX_SERVICE_URL') . '/cex/transaction', [
+            return array_map(fn ($s) => $pool->post(config('app.cex_service_url') . '/cex/transaction', [
                 'symbol' => $s['name'],
                 'exchanges' => $s['exchange'] ?? 'binance', // Default to binance if not specified
                 'credentials' => $this->credentials,
@@ -176,7 +176,7 @@ class ExchangeService
     }
 
     public function syncTransactions($symbols, $since, $userId) {
-        $response = Http::post(env('CEX_SERVICE_URL') . '/cex/sync-transactions', [
+        $response = Http::post(config('app.cex_service_url') . '/cex/sync-transactions', [
             'credentials' => $this->credentials,
             'exchanges' => $this->exchange,
             'symbols' => $symbols,
