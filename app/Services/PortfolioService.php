@@ -16,7 +16,7 @@ class PortfolioService
                 return strtoupper($a['symbol']) . '/USDT';
             }, $assets->toArray());
 
-            $response = Http::post(env('CEX_SERVICE_URL') . '/cex/ticker', [
+            $response = Http::post(config('app.cex_service_url') . '/cex/ticker', [
                 'symbols' => $listSymbols
             ])->throw()->json();
             $tickers = $response['data'] ?? [];
@@ -33,8 +33,8 @@ class PortfolioService
                     $tmp = strtolower($asset->symbol);
                     $coingecko = Http::withHeaders([
                         'accept' => 'application/json',
-                        'x-cg-demo-api-key' => env('COINGECKO_API_KEY'),
-                    ])->get(env('COINGECKO_URL', 'https://api.coingecko.com/api/v3') . '/simple/price', [
+                        'x-cg-demo-api-key' => config('app.coingecko_api_key'),
+                    ])->get(config('app.coingecko_url', 'https://api.coingecko.com/api/v3') . '/simple/price', [
                         'vs_currencies' => 'usd',
                         'symbols' => $tmp,
                     ])->json();

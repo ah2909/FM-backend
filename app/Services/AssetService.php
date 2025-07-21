@@ -15,8 +15,8 @@ class AssetService
         if ($asset->isEmpty()) {
             $coingecko = Http::withHeaders([
                 'accept' => 'application/json',
-                'x-cg-demo-api-key' => env('COINGECKO_API_KEY'),
-            ])->get(env('COINGECKO_URL', 'https://api.coingecko.com/api/v3') . '/coins/markets', [
+                'x-cg-demo-api-key' => config('app.coingecko_api_key'),
+            ])->get(config('app.coingecko_url', 'https://api.coingecko.com/api/v3') . '/coins/markets', [
                 'vs_currency' => 'usd',
                 'symbols' => $symbol,
             ])->json();
