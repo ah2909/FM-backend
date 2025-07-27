@@ -51,8 +51,21 @@ class ExchangeController extends Controller
                 'password' => 'nullable|string',
             ]);
 
-            $cex_id = DB::select('select id from CEXs where name = ?', [$validatedData['cex_name']]);
+            $cex_name = strtolower($validatedData['cex_name']);
+
+            $cex_id = DB::select('select id from CEXs where name = ?', [$cex_name]);
             $user_id = $request->attributes->get('user')->id;
+            $credentials[$cex_name] = [
+                'api_key' => $validatedData['api_key'],
+                'api_secret' => $validatedData['secret_key'],
+                'password' => isset($validatedData['password']) ? $validatedData['password'] : null,
+            ];
+            // DO LATER
+            UpdatePortfolioAssets::dispatch([$cex_name], $credentials, $user_id, $cex_name);
+            $isValid = $this->exchangeService->validateAPICredentials($cex_name, $credentials[$cex_name]);
+            if (!$isValid) {
+                return $this->errorResponse('Invalid API credentials', 400);
+            }
             Exchange::create([
                 'cex_id' => $cex_id[0]->id,
                 'api_key'=> Crypt::encryptString($validatedData['api_key']),
@@ -60,20 +73,11 @@ class ExchangeController extends Controller
                 'password' => isset($validatedData['password']) ? Crypt::encryptString($validatedData['password']) : null,
                 'user_id' => $user_id
             ]);
-
-            $exchange = [strtolower($validatedData['cex_name'])];
-            $credentials[strtolower($validatedData['cex_name'])] = [
-                'api_key' => $validatedData['api_key'],
-                'api_secret' => $validatedData['secret_key'],
-                'password' => isset($validatedData['password']) ? $validatedData['password'] : null,
-            ];
-            // DO LATER
-            // UpdatePortfolioAssets::dispatch($exchange, $credentials, $user_id, $exchange[0]);
             return $this->successResponse([], 'Connect successfully', 201);
         }
         catch (\Throwable $th) {
             return $this->handleException($th, [
-                'cex_name' => $validatedData['cex_name'],
+                'cex_name' => $cex_name,
                 'user_id' => $user_id,
             ]);
         } 

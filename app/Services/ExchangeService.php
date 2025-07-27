@@ -185,4 +185,12 @@ class ExchangeService
         ])->throw()->json();
         return $response['data'] ?? [];
     }
+
+    public function validateAPICredentials($exchangeName, $credentials) {
+        $response = Http::post(config('app.cex_service_url') . '/cex/validate', [
+            'exchange' => $exchangeName,
+            'credentials' => $credentials,
+        ])->throw()->json();
+        return $response['success'] ?? false;
+    }
 }

@@ -39,13 +39,17 @@ class StoreUserBalance extends Command
         $portfolios = Portfolio::all();
 
         foreach ($portfolios as $portfolio) {
-           $portfolio->assets = $portfolio->assets->map(function($asset) {
-            if (isset($asset->pivot->amount)) {
-                $asset->amount = $asset->pivot->amount;
-                $asset->avg_price = $asset->pivot->avg_price;
-                unset($asset->pivot);
+            if(count($portfolio->assets) === 0) {
+                $this->info("Portfolio ID {$portfolio->id} has no assets, skipping.");
+                continue;
             }
-            return $asset;
+            $portfolio->assets = $portfolio->assets->map(function($asset) {
+                if (isset($asset->pivot->amount)) {
+                    $asset->amount = $asset->pivot->amount;
+                    $asset->avg_price = $asset->pivot->avg_price;
+                    unset($asset->pivot);
+                }
+                return $asset;
             });
             $priceData = $this->portfolioService->getPriceOfPort($portfolio->assets);
             $portfolio = $this->portfolioService->calculatePortfolioValue($portfolio, $priceData);
