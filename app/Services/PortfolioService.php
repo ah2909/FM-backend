@@ -100,7 +100,7 @@ class PortfolioService
                         $sellQuantity -= $first['quantity'];
                         array_shift($queue);
                     } else {
-                        $unitCost = $first['cost'] / $first['quantity'];
+                        $unitCost = $first['price'];
                         $sellCost += $sellQuantity * $unitCost;
                         $first['quantity'] -= $sellQuantity;
                         $first['cost'] -= $sellQuantity * $unitCost;
@@ -110,7 +110,7 @@ class PortfolioService
             
                 $realizedPnL += ($tx['cost'] - $sellCost);
                 $totalCost -= $sellCost;
-                $totalQuantity -= $tx['quantity'];
+                $totalQuantity = $totalQuantity - $tx['quantity'] < 0 ? 0 : $totalQuantity - $tx['quantity'];
             }
         }
         // if($actualAmount > $totalQuantity) {
