@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\AddTokenToPort;
+use App\Jobs\ImportCSVTransactions;
 use App\Jobs\SyncTransactions;
 use App\Models\Portfolio;
 use App\Models\Transaction;
@@ -139,55 +141,7 @@ class PortfolioController extends Controller
                 'portfolio_id' => 'required',
                 'token' => 'required|array'
             ]);
-            $portfolio = Portfolio::findOrFail($request['portfolio_id']);
-            
-            foreach ($validatedData['token'] as $token) {
-                $tmp = $this->assetService->checkAssetExists($token['symbol']);
-                if (!$tmp) {
-                    throw new \Exception("Token {$token['symbol']} not found.");
-                }
-                else {
-                    $listTokenID[] = $tmp[0]['id'];
-                    $listTokenAmount[] = $token['amount'];
-                    $listSymbols[] = [
-                        'name' => $token['symbol'] . '/USDT',
-                        'exchange' => $token['exchange'],
-                    ];
-                }
-            }
-            $transactions = $this->exchangeService->getSymbolTransactions($listSymbols);
-            $formattedTransactions = [];
-
-            foreach ($listSymbols as $index => $symbol) {
-                $assetID = $listTokenID[$index];
-                $symbolTransactions = $transactions[$symbol['name']];
-            
-                $listAvgPrice[] = PortfolioService::calculateAvgPrice($symbolTransactions);
-
-                foreach ($symbolTransactions as $transaction) {
-                    $exchange_id = config('exchanges.' . strtolower($transaction['exchange']) . '_id');
-                    $formattedTransactions[] = [
-                        'exchange_id' => $exchange_id,
-                        'portfolio_id' => $portfolio->id,
-                        'asset_id' => $assetID,
-                        'quantity' => $transaction['quantity'],
-                        'price' => $transaction['price'],
-                        'type' => $transaction['type'],
-                        'transact_date' => $transaction['transact_date']
-                    ];
-                }
-                
-            }
-            DB::transaction(function () use ($formattedTransactions, $listTokenID, $listTokenAmount, $listAvgPrice, $portfolio) {
-                Transaction::upsert($formattedTransactions, [], ['type', 'price', 'quantity', 'transact_date']);
-                $assetsToAttach = array_combine($listTokenID, array_map(fn($amount, $avgPrice) => 
-                ['amount' => $amount, 'avg_price' => $avgPrice['average_price']], $listTokenAmount, $listAvgPrice));
-                $portfolio->assets()->attach($assetsToAttach);
-            });
-            foreach($listTokenID as $assetId) {
-                PortfolioService::storeRecentActivity($request->attributes->get('user')->id, 'Add asset', $assetId);
-            }
-
+            AddTokenToPort::dispatch($validatedData, $request->attributes->get('user')->id, $this->assetService, $this->exchangeService);
             return $this->successResponse(null, 'Token added to portfolio successfully', 201);     
         } catch (\Exception $e) {
             return $this->handleException($e, ['request' => $request->all()]);
@@ -296,6 +250,28 @@ class PortfolioController extends Controller
             return $this->successResponse($recentActivities);
         } catch (\Exception $e) {
             return $this->handleException($e, ['user_id' => $user_id]);
+        }
+    }
+
+    public function importPortfolioTransactionsCSV(Request $request)
+    {
+        $userId = $request->attributes->get('user')->id;
+        $exchange = "";
+        try {
+            $validatedData = $request->validate([
+                'file' => 'required|file|mimes:csv',
+                'exchange' => 'required|string',
+            ]);
+
+            $exchange = $validatedData['exchange'];
+            $exchangeId = config('exchanges.' . strtolower($validatedData['exchange']) . '_id');
+            $file = $request->file('file');
+            $file = $file->store('', ['disk' => 'public']);
+
+            ImportCSVTransactions::dispatch($file, $userId, $exchangeId);
+            return $this->successResponse(null, 'Portfolio transactions imported successfully', 201);
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['user_id' => $userId, 'exchange' => $exchange]);
         }
     }
 }

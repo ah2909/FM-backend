@@ -113,11 +113,10 @@ class PortfolioService
                 $totalQuantity = $totalQuantity - $tx['quantity'] < 0 ? 0 : $totalQuantity - $tx['quantity'];
             }
         }
-        // if($actualAmount > $totalQuantity) {
-        //     $averageBuyPrice = (($actualAmount - $totalQuantity) * $currentPrice + ($totalCost / $totalQuantity) * $totalQuantity) / 100;
-        // }
+        
         $averageBuyPrice = ($totalQuantity > 0) ? ($totalCost / $totalQuantity) : 0;
         // $unrealizedPnL = ($totalAmount > 0) ? (($currentPrice * $totalAmount) - $totalCost) : 0;
+        Log::info("Average Buy Price: $averageBuyPrice");
     
         return [
             'average_price' => round($averageBuyPrice, 4),
