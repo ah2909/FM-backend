@@ -19,6 +19,7 @@ Route::middleware([JWTAuth::class])->group(function () {
         Route::post('/sync-transactions', [PortfolioController::class, 'syncPortfolioTransactions']);
         Route::get('/balance', [PortfolioController::class, 'getBalanceByUserID']);
         Route::get('/recent-activity', [PortfolioController::class, 'getRecentActivity']);
+        Route::post('/import-transactions', [PortfolioController::class, 'importPortfolioTransactionsCSV']);
     });
 
     Route::prefix('asset')->group(function () {

@@ -143,15 +143,53 @@ class ExchangeService
     public function getSymbolTransactions($symbols)
     {
         $allTrades = [];
-        $trades = Http::pool(function (Pool $pool) use ($symbols) {
+        $filteredSymbols = array_filter($symbols, function ($s) {
+            return !in_array('okx', $s['exchange']);
+        });
+        $trades = Http::pool(function (Pool $pool) use ($filteredSymbols) {
             return array_map(fn ($s) => $pool->post(config('app.cex_service_url') . '/cex/transaction', [
                 'symbol' => $s['name'],
-                'exchanges' => $s['exchange'] ?? 'binance', // Default to binance if not specified
+                'exchanges' => $s['exchange'],
                 'credentials' => $this->credentials,
-            ]), $symbols);
+            ]), $filteredSymbols);
         });
 
-        foreach ($symbols as $index => $symbol) {
+        // Handle OKX trades separately due to limitations
+        $okxSymbols = array_filter($symbols, function ($s) {
+            return in_array('okx', $s['exchange']);
+        });
+        foreach ($okxSymbols as $symbol) {
+            try {
+                $response = Http::post(config('app.cex_service_url') . '/cex/transaction', [
+                    'symbol' => $symbol['name'],
+                    'exchanges' => $symbol['exchange'],
+                    'credentials' => $this->credentials,
+                ])->throw()->json();
+
+                if(empty($response['data'])) {
+                    $allTrades[$symbol['name']] = [];
+                    continue;
+                }
+                $formattedTrades = array_map(function ($trade) {
+                    return [
+                        'symbol' => $trade['symbol'],
+                        'type' => $trade['side'],
+                        'price' => $trade['price'],
+                        'quantity' => $trade['amount'],
+                        'cost' => $trade['cost'],
+                        'transact_date' => date('Y-m-d H:i:s', $trade['timestamp'] / 1000),
+                        'exchange' => $trade['exchange'],
+                    ];
+                }, $response['data']);
+                
+                // Add the fetched trades to our results array, keyed by symbol
+                $allTrades[$symbol['name']] = $formattedTrades;
+            } catch (\Exception $e) {
+                Log::error("Error fetching trades for {$symbol['name']} on OKX: " . $e->getMessage());
+            }  
+        }
+
+        foreach ($filteredSymbols as $index => $symbol) {
             try {
                 $formattedTrades = array_map(function ($trade) {
                     return [
@@ -161,7 +199,7 @@ class ExchangeService
                         'quantity' => $trade['amount'],
                         'cost' => $trade['cost'],
                         'transact_date' => date('Y-m-d H:i:s', $trade['timestamp'] / 1000),
-                        'exchange' => $trade['exchange'] ?? 'binance', // Default to binance if not specified
+                        'exchange' => $trade['exchange'],
                     ];
                 }, $trades[$index]->json()['data'] ?? []);
                 
