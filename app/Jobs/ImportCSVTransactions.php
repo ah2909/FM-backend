@@ -150,8 +150,10 @@ class ImportCSVTransactions implements ShouldQueue
         $setId = array_unique($setId);
         DB::beginTransaction();
         try {
-            Transaction::where('portfolio_id', $portfolio->id)->where('exchange_id', $this->exchangeId)->delete();
-            Transaction::insert($transactions);
+            Transaction::upsert(
+                $transactions, 
+                ['portfolio_id', 'asset_id', 'exchange_id', 'transact_date', 'type'], 
+                ['quantity', 'price']);
             DB::commit();
 
             foreach ($setId as $asset) {

@@ -24,9 +24,11 @@ class PortfolioService
             $result = [];
             foreach ($assets as $asset) {
                 $price = null;
+                $percentChange = null;
                 $formattedSymbol = strtoupper($asset->symbol) . '/USDT';
                 if (isset($tickers[$formattedSymbol])) {
                     $price = $tickers[$formattedSymbol]['last'];
+                    $percentChange = $tickers[$formattedSymbol]['percentage'];
                 }
                 else {
                     // Fetch price from coingecko API if not found in tickers
@@ -40,11 +42,13 @@ class PortfolioService
                     ])->json();
                     if (isset($coingecko[$tmp]['usd'])) {
                         $price = $coingecko[$tmp]['usd'];
+                        $percentChange = 0; // No percent change available from coingecko
                     }
                 }
 
                 $result[$asset->symbol] = [
                     'price' => $price,
+                    'percentChange' => $percentChange,
                     'value' => $price !== null ? $price * $asset->amount : null
                 ];
             }
@@ -60,6 +64,7 @@ class PortfolioService
         $totalValue = 0;
         $assets = $portfolio->assets->map(function ($asset) use ($priceData, &$totalValue) {
             $asset->price = $priceData[$asset->symbol]['price'];
+            $asset->percentChange = $priceData[$asset->symbol]['percentChange'];
             $asset->value = $priceData[$asset->symbol]['value'];
             $totalValue += $asset->value;
             return $asset;
