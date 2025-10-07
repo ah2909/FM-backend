@@ -14,7 +14,7 @@ Route::middleware([JWTAuth::class])->group(function () {
         Route::put('/{portfolio_id}', [PortfolioController::class, 'update']);
         Route::delete('/{portfolio_id}', [PortfolioController::class, 'destroy']);
         Route::post('/asset', [PortfolioController::class, 'addTokenToPort']);
-        Route::post('/asset/add-manual', [PortfolioController::class, 'addTokenToPortManual']);
+        // Route::post('/asset/add-manual', [PortfolioController::class, 'addTokenToPortManual']);
         Route::post('/asset/remove', [PortfolioController::class, 'removeTokenfromPort']);
         Route::post('/sync-transactions', [PortfolioController::class, 'syncPortfolioTransactions']);
         Route::get('/balance', [PortfolioController::class, 'getBalanceByUserID']);

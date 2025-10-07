@@ -15,6 +15,7 @@ use App\Traits\ErrorHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Validation\ValidationException;
 
 
@@ -54,6 +55,10 @@ class PortfolioController extends Controller
     {
         try {
             $user_id = request()->attributes->get('user')->id;
+            if (Redis::exists("portfolio_user_{$user_id}")) {
+                $portfolio = json_decode(Redis::get("portfolio_user_{$user_id}"), true);
+                return $this->successResponse($portfolio);
+            }
             $portfolio = Portfolio::with([
                 'assets',
                 'transactions'
@@ -67,22 +72,23 @@ class PortfolioController extends Controller
             }
 
             $portfolio = $this->calculatePortfolioBalance($portfolio);
-                    
+            Redis::set("portfolio_user_{$user_id}", json_encode($portfolio), 'EX', 120);
+
             return $this->successResponse($portfolio);
         } catch (\Exception $e) {
             return $this->handleException($e, ['user_id' => $user_id]);
         }
     }
 
-    public function getPortByID($id)
-    {
-        try {
-            $portfolio = Portfolio::with(['assets', 'transactions'])->findOrFail($id);
-            return $this->successResponse($portfolio);
-        } catch (\Exception $e) {
-            return $this->handleException($e, ['portfolio_id' => $id]);
-        }
-    }
+    // public function getPortByID($id)
+    // {
+    //     try {
+    //         $portfolio = Portfolio::with(['assets', 'transactions'])->findOrFail($id);
+    //         return $this->successResponse($portfolio);
+    //     } catch (\Exception $e) {
+    //         return $this->handleException($e, ['portfolio_id' => $id]);
+    //     }
+    // }
 
     public function store(Request $request)
     {
@@ -115,7 +121,7 @@ class PortfolioController extends Controller
             ]);
             $portfolio = Portfolio::findOrFail($portfolio_id);
             $portfolio->update($validatedData);
-            
+            Redis::del("portfolio_user_{$portfolio->user_id}");
             return $this->successResponse($portfolio, 'Portfolio updated successfully');
         }
         catch (\Exception $e) {
@@ -141,36 +147,38 @@ class PortfolioController extends Controller
                 'portfolio_id' => 'required',
                 'token' => 'required|array'
             ]);
-            AddTokenToPort::dispatch($validatedData, $request->attributes->get('user')->id, $this->assetService, $this->exchangeService);
+            $user_id = $request->attributes->get('user')->id;
+            Redis::del("portfolio_user_{$user_id}");
+            AddTokenToPort::dispatch($validatedData, $user_id, $this->exchangeService);
             return $this->successResponse(null, 'Token added to portfolio successfully', 201);     
         } catch (\Exception $e) {
             return $this->handleException($e, ['request' => $request->all()]);
         }
     }
 
-    public function addTokenToPortManual(Request $request) {
-        /*
-            $portfolio_id: int
-            $token: {} -> token EX: {symbol: 'BTC', amount: 1}
-        */
-        try {
-            $validatedData = $request->validate([
-                'portfolio_id' => 'required',
-                'token' => 'required'
-            ]);
-            $portfolio = Portfolio::findOrFail($request['portfolio_id']);
-            $tokenID = $this->assetService->checkAssetExists($validatedData['token']['symbol']);
-            if (!$tokenID) {
-                throw new \Exception("Token {$validatedData['token']['symbol']} not found.");
-            }
+    // public function addTokenToPortManual(Request $request) {
+    //     /*
+    //         $portfolio_id: int
+    //         $token: {} -> token EX: {symbol: 'BTC', amount: 1}
+    //     */
+    //     try {
+    //         $validatedData = $request->validate([
+    //             'portfolio_id' => 'required',
+    //             'token' => 'required'
+    //         ]);
+    //         $portfolio = Portfolio::findOrFail($request['portfolio_id']);
+    //         $tokenID = $this->assetService->checkAssetExists($validatedData['token']['symbol']);
+    //         if (!$tokenID) {
+    //             throw new \Exception("Token {$validatedData['token']['symbol']} not found.");
+    //         }
            
-            $portfolio->assets()->attach($tokenID, ['amount' => $validatedData['token']['amount']]);
+    //         $portfolio->assets()->attach($tokenID, ['amount' => $validatedData['token']['amount']]);
 
-            return $this->successResponse(null, 'Add token to portfolio successfully', 201);
-        } catch (\Exception $e) {
-            return $this->handleException($e, ['token' => $validatedData['token']]);
-        }
-    }
+    //         return $this->successResponse(null, 'Add token to portfolio successfully', 201);
+    //     } catch (\Exception $e) {
+    //         return $this->handleException($e, ['token' => $validatedData['token']]);
+    //     }
+    // }
 
     public function removeTokenfromPort(Request $request) {
         /*
@@ -183,12 +191,13 @@ class PortfolioController extends Controller
                 'token' => 'required'
             ]);
             $portfolio = Portfolio::findOrFail($request['portfolio_id']);
-            $tokenID = $this->assetService->checkAssetExists($validatedData['token']);
-            $portfolio->assets()->detach($tokenID);
-            foreach ($tokenID as $token) {
-                $portfolio->transactions()->where('asset_id', $token->id)->delete();
-                PortfolioService::storeRecentActivity($request->attributes->get('user')->id, 'Remove asset', $token->id);
-            }
+            $token = $this->assetService->checkAssetExists($validatedData['token']);
+            $portfolio->assets()->detach($token);
+            
+            $portfolio->transactions()->where('asset_id', $token->id)->delete();
+            $user_id = $request->attributes->get('user')->id;
+            Redis::del("portfolio_user_{$user_id}");
+            PortfolioService::storeRecentActivity($user_id, 'Remove asset', $token->id);
 
             return $this->successResponse(null, 'Remove token from portfolio successfully', 200);
         } catch (\Exception $e) {
@@ -205,13 +214,14 @@ class PortfolioController extends Controller
                 'portfolio_id' => 'required|integer',
             ]);
             $portfolio = Portfolio::findOrFail($validatedData['portfolio_id']);
-            $jobId = "{$request->get('user')->id}_{$portfolio->id}";
-            $cachedJob = Cache::get("sync_transactions_{$jobId}");
-            if($cachedJob) {
+            $user_id = $request->attributes->get('user')->id;
+            $jobId = "{$user_id}_{$portfolio->id}";
+            
+            if(Redis::exists("sync_transactions_{$jobId}")) {
                 return $this->successResponse(['status' => 'success'], 'Portfolio transactions are already synced', 200);
             }
 
-            SyncTransactions::dispatch($this->exchangeService, $jobId, $portfolio, $request->get('user')->id);
+            SyncTransactions::dispatch($this->exchangeService, $jobId, $portfolio, $user_id);
             return $this->successResponse(['status' => 'syncing', 'job_id' => $jobId], 'Portfolio transactions are syncing', 200);
         } catch (\Exception $e) {
             return $this->handleException($e, ['portfolio_id' => $validatedData['portfolio_id']]);

@@ -2,15 +2,14 @@
 
 namespace App\Jobs;
 
+use App\DataProviders\CexServiceProvider;
 use App\Models\Portfolio;
 use App\Models\Transaction;
 use App\Services\PortfolioService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class ImportCSVTransactions implements ShouldQueue
 {
@@ -118,7 +117,7 @@ class ImportCSVTransactions implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(): void
+    public function handle(CexServiceProvider $cexService): void
     {
         $fileStream = fopen(storage_path('app/public/' . $this->file), 'r');    
         $csvContents = [];
@@ -169,18 +168,18 @@ class ImportCSVTransactions implements ShouldQueue
                 ]);
             }
             $count = count($setId);
-            $emit = Http::post(config('app.cex_service_url') . '/emit-event', [
-                'event' => 'import-csv-transactions',
-                'data' => ['success' => true, 'message' => "{$count} tokens updated transactions successfully"],
-                'userId' => $this->userId,
-            ])->throw()->json();
+            $cexService->emitEvent(
+                'import-csv-transactions', 
+                ['success' => true, 'message' => "{$count} tokens updated transactions successfully"], 
+                $this->userId
+            );
         } catch (\Exception $e) {
             DB::rollBack();
-            $emit = Http::post(config('app.cex_service_url') . '/emit-event', [
-                'event' => 'import-csv-transactions',
-                'data' => ['success' => false, 'error' => $e->getMessage()],
-                'userId' => $this->userId,
-            ])->throw()->json();
+            $cexService->emitEvent(
+                'import-csv-transactions', 
+                ['success' => false, 'error' => $e->getMessage()], 
+                $this->userId
+            );
             Log::error("Failed to import transactions: " . $e->getMessage());
         }
     

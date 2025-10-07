@@ -2,13 +2,14 @@
 
 namespace App\Jobs;
 
+use App\DataProviders\CexServiceProvider;
 use App\Models\Portfolio;
 use App\Models\Transaction;
+use App\Services\AssetService;
 use App\Services\PortfolioService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class AddTokenToPort implements ShouldQueue
@@ -17,14 +18,12 @@ class AddTokenToPort implements ShouldQueue
 
     protected $data;
     protected $userId;
-    protected $assetService;
     protected $exchangeService;
     /**
      * Create a new job instance.
      */
-    public function __construct($data, $userId, $assetService, $exchangeService)
+    public function __construct($data, $userId, $exchangeService)
     {
-        $this->assetService = $assetService;
         $this->exchangeService = $exchangeService;
         $this->data = $data;
         $this->userId = $userId;
@@ -33,18 +32,18 @@ class AddTokenToPort implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(): void
+    public function handle(AssetService $assetService, CexServiceProvider $cexService): void
     {
         try {
             $portfolio = Portfolio::findOrFail($this->data['portfolio_id']);
                 
             foreach ($this->data['token'] as $token) {
-                $tmp = $this->assetService->checkAssetExists($token['symbol']);
+                $tmp = $assetService->checkAssetExists($token['symbol']);
                 if (!$tmp) {
                     throw new \Exception("Token {$token['symbol']} not found.");
                 }
                 else {
-                    $listTokenID[] = $tmp[0]['id'];
+                    $listTokenID[] = $tmp->id;
                     $listTokenAmount[] = $token['amount'];
                     $listSymbols[] = [
                         'name' => $token['symbol'] . '/USDT',
@@ -85,18 +84,18 @@ class AddTokenToPort implements ShouldQueue
                 PortfolioService::storeRecentActivity($this->userId, 'Add asset', $assetId);
             }
             $count = count($this->data['token']);
-            $emit = Http::post(config('app.cex_service_url') . '/emit-event', [
-                'event' => 'add-token-to-port',
-                'data' => ['success' => true, 'message' => "{$count} tokens added to portfolio successfully"],
-                'userId' => $this->userId,
-            ])->throw()->json();
+            $cexService->emitEvent(
+                'add-token-to-port', 
+                ['success' => true, 'message' => "$count tokens added to portfolio successfully"], 
+                $this->userId
+            );
         }
         catch (\Throwable $th) {
-            $emit = Http::post(config('app.cex_service_url') . '/emit-event', [
-                'event' => 'add-token-to-port',
-                'data' => ['success' => false, 'error' => $th->getMessage()],
-                'userId' => $this->userId,
-            ])->throw()->json();
+            $cexService->emitEvent(
+                'add-token-to-port', 
+                ['success' => false, 'error' => $th->getMessage()], 
+                $this->userId
+            );
             Log::error("Failed to add token to portfolio: " . $th->getMessage());
         }
     }

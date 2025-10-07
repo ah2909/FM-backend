@@ -3,28 +3,29 @@
 namespace App\Services;
 
 use App\Models\Asset;
-use Illuminate\Support\Facades\Http;
+use App\DataProviders\CoinGeckoProvider;
 
 class AssetService
 {
+    private $coingecko;
+
+    public function __construct(CoinGeckoProvider $coingecko)
+    {
+        $this->coingecko = $coingecko;
+    }
+
     public function checkAssetExists($asset)
     {
         // Check if the asset exists in the database
         $symbol = strtolower($asset);
-        $asset = Asset::where('symbol', $symbol)->get();
-        if ($asset->isEmpty()) {
-            $coingecko = Http::withHeaders([
-                'accept' => 'application/json',
-                'x-cg-demo-api-key' => config('app.coingecko_api_key'),
-            ])->get(config('app.coingecko_url', 'https://api.coingecko.com/api/v3') . '/coins/markets', [
-                'vs_currency' => 'usd',
-                'symbols' => $symbol,
-            ])->json();
-            if (isset($coingecko[0]) && isset($coingecko[0]['id'])) {
+        $asset = Asset::where('symbol', $symbol)->first();
+        if (!$asset) {
+            $symbolInfo = $this->coingecko->getAssetInfo($symbol);
+            if (isset($symbolInfo) && isset($symbolInfo['id'])) {
                 $data = Asset::create([
                     'symbol' => $symbol,
-                    'name' => $coingecko[0]['name'],
-                    'img_url' => $coingecko[0]['image'],
+                    'name' => $symbolInfo['name'],
+                    'img_url' => $symbolInfo['image'],
                 ]);
                 $asset[] = $data;
             } else {
