@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\DataProviders\CexServiceProvider;
 use App\Models\Exchange;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\Crypt;
@@ -12,8 +13,9 @@ class ExchangeService
 {
     protected $exchange;
     protected $credentials;
+    protected $cexService;
 
-    public function __construct()
+    public function __construct(CexServiceProvider $cexService)
     {
         $userId = request()->get('user')->id;
         $keys = Exchange::where('user_id', $userId)->get();
@@ -51,6 +53,7 @@ class ExchangeService
                 }
             }
         }
+        $this->cexService = $cexService;
     }
 
     public function getBalances()
@@ -59,12 +62,9 @@ class ExchangeService
         $stablecoins = ['USDT', 'USDC'];
         $results = [];
 
-        $response = Http::post(config('app.cex_service_url') . '/cex/portfolio', [
-            'credentials' => $this->credentials,
-            'exchanges' => $this->exchange,
-        ])->throw()->json();
+        $response = $this->cexService->getPortfolioBalance($this->credentials, $this->exchange);
 
-        foreach ($response['data'] as $exchangeName => $balance) {
+        foreach ($response as $exchangeName => $balance) {
             try {
                 // Prepare symbols list for tickers
                 $listSymbols = [];
@@ -76,10 +76,8 @@ class ExchangeService
                 // Fetch tickers only for non-empty balances
                 $tickers = [];
                 if (!empty($listSymbols)) {
-                    $response = Http::post(config('app.cex_service_url') . '/cex/ticker', [
-                        'symbols' => $listSymbols
-                    ])->throw()->json();
-                    $tickers = $response['data'] ?? [];
+                    $response = $this->cexService->fetchTicker($listSymbols);
+                    $tickers = $response ?? [];
                 }
 
                 $results[$exchangeName] = [
@@ -143,9 +141,9 @@ class ExchangeService
     public function getSymbolTransactions($symbols)
     {
         $allTrades = [];
-        $filteredSymbols = array_filter($symbols, function ($s) {
+        $filteredSymbols = array_values(array_filter($symbols, function ($s) {
             return !in_array('okx', $s['exchange']);
-        });
+        }));
         $trades = Http::pool(function (Pool $pool) use ($filteredSymbols) {
             return array_map(fn ($s) => $pool->post(config('app.cex_service_url') . '/cex/transaction', [
                 'symbol' => $s['name'],
@@ -155,18 +153,14 @@ class ExchangeService
         });
 
         // Handle OKX trades separately due to limitations
-        $okxSymbols = array_filter($symbols, function ($s) {
+        $okxSymbols = array_values(array_filter($symbols, function ($s) {
             return in_array('okx', $s['exchange']);
-        });
+        }));
         foreach ($okxSymbols as $symbol) {
             try {
-                $response = Http::post(config('app.cex_service_url') . '/cex/transaction', [
-                    'symbol' => $symbol['name'],
-                    'exchanges' => $symbol['exchange'],
-                    'credentials' => $this->credentials,
-                ])->throw()->json();
+                $response = $this->cexService->getSymbolTransactions($symbol['name'], $symbol['exchange'], $this->credentials);
 
-                if(empty($response['data'])) {
+                if(empty($response)) {
                     $allTrades[$symbol['name']] = [];
                     continue;
                 }
@@ -180,7 +174,7 @@ class ExchangeService
                         'transact_date' => date('Y-m-d H:i:s', $trade['timestamp'] / 1000),
                         'exchange' => $trade['exchange'],
                     ];
-                }, $response['data']);
+                }, $response);
                 
                 // Add the fetched trades to our results array, keyed by symbol
                 $allTrades[$symbol['name']] = $formattedTrades;
@@ -222,13 +216,5 @@ class ExchangeService
             'user_id' => $userId,
         ])->throw()->json();
         return $response['data'] ?? [];
-    }
-
-    public function validateAPICredentials($exchangeName, $credentials) {
-        $response = Http::post(config('app.cex_service_url') . '/cex/validate', [
-            'exchange' => $exchangeName,
-            'credentials' => $credentials,
-        ])->throw()->json();
-        return $response['success'] ?? false;
     }
 }

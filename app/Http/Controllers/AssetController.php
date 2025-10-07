@@ -11,11 +11,7 @@ use App\Traits\ErrorHandler;
 class AssetController extends Controller
 {
     use ApiResponse, ErrorHandler;
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
+    
     public function index()
     {
         try {
@@ -27,12 +23,6 @@ class AssetController extends Controller
         }
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param \Illuminate\Http\Request $request
-     * @return \Illuminate\Http\Response
-     */
     public function store(Request $request)
     {
         $data = $request->all();

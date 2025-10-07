@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\DataProviders\CexServiceProvider;
 use App\Jobs\UpdatePortfolioAssets;
 use App\Models\Exchange;
 use App\Services\ExchangeService;
@@ -16,27 +17,29 @@ class ExchangeController extends Controller
 {
     use ApiResponse, ErrorHandler;
     protected $exchangeService;
+    protected $cexService;
 
-    public function __construct(ExchangeService $exchangeService)
+    public function __construct(ExchangeService $exchangeService, CexServiceProvider $cexService)
     {
         $this->exchangeService = $exchangeService;
+        $this->cexService = $cexService;
     }
 
     public function get_supported_cex(Request $request) {
         try {
-            $cex = DB::select('select * from CEXs');
+            $cexs = DB::select('select * from CEXs');
             $user_id = $request->attributes->get('user')->id;
             $cex_connected = DB::select('select cex_id from exchanges where user_id=?', [$user_id]);
-            foreach ($cex as $ele) {
-                foreach($cex_connected as $tmp) {
-                    if($ele->id === $tmp->cex_id) $ele->is_connected = true;
+            foreach ($cex_connected as $tmp) {
+                foreach($cexs as $cex) {
+                    if($cex->id === $tmp->cex_id) {
+                        $cex->is_connected = true;
+                        break;
+                    }
                 }
             }
-            return $this->successResponse($cex);
+            return $this->successResponse($cexs);
         } catch (\Throwable $th) {
-            return response()->json([
-                'message' => $th->getMessage()
-            ], 400);
             return $this->handleException($th, ['user_id' => $user_id]);
         }
         
@@ -52,7 +55,6 @@ class ExchangeController extends Controller
             ]);
 
             $cex_name = strtolower($validatedData['cex_name']);
-
             $cex_id = DB::select('select id from CEXs where name = ?', [$cex_name]);
             $user_id = $request->attributes->get('user')->id;
             $credentials[$cex_name] = [
@@ -60,9 +62,9 @@ class ExchangeController extends Controller
                 'api_secret' => $validatedData['secret_key'],
                 'password' => isset($validatedData['password']) ? $validatedData['password'] : null,
             ];
-            // DO LATER
-            UpdatePortfolioAssets::dispatch([$cex_name], $credentials, $user_id, $cex_name);
-            $isValid = $this->exchangeService->validateAPICredentials($cex_name, $credentials[$cex_name]);
+            
+            UpdatePortfolioAssets::dispatch($cex_name, $credentials, $user_id, $cex_name);
+            $isValid = $this->cexService->validateAPICredentials($cex_name, $credentials[$cex_name]);
             if (!$isValid) {
                 return $this->errorResponse('Invalid API credentials', 400);
             }
@@ -91,7 +93,7 @@ class ExchangeController extends Controller
                 return $this->successResponse($data, 'Get info from CEX successfully');
             }
             $balance = $this->exchangeService->getBalances();
-            $asset = DB::select('select symbol, img_url from assets');
+            $assets = DB::select('select symbol, img_url from assets');
              
             $data = [];
             $symbols = [];
@@ -100,13 +102,13 @@ class ExchangeController extends Controller
                 $symbols[] = $item['symbol'] . '/USDT';
             }
             // Iterate through array1 and merge with matching elements from array2
-            foreach ($asset as $a) {
-                if (array_key_exists(strtoupper($a->symbol), $data)) {
-                    $data[strtoupper($a->symbol)]['img_url'] = $a->img_url;
+            foreach ($assets as $asset) {
+                if (array_key_exists(strtoupper($asset->symbol), $data)) {
+                    $data[strtoupper($asset->symbol)]['img_url'] = $asset->img_url;
                 }
             }
             $data = array_values($data);
-            Redis::set('cex_info_'.$user_id, json_encode($data), 'EX', 15 * 60);
+            Redis::set("cex_info_$user_id", json_encode($data), 'EX', 15 * 60);
             return $this->successResponse($data, 'Get info from CEX successfully');
         } catch (\Throwable $th) {
             return $this->handleException($th, []);

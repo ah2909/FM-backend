@@ -7,9 +7,9 @@ use App\Services\ExchangeService;
 use App\Services\PortfolioService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
 class SyncTransactions implements ShouldQueue
 {
@@ -45,7 +45,7 @@ class SyncTransactions implements ShouldQueue
         
         $transactions = $this->exchangeService->syncTransactions($symbols, $lastUpdated, $this->userId);
         if (empty($transactions)) {
-           Cache::put("sync_transactions_$this->jobId", [], 3600);
+           Redis::set("sync_transactions_$this->jobId", json_encode([]), 'EX', 3600);
            return;
         }
 
@@ -101,6 +101,6 @@ class SyncTransactions implements ShouldQueue
         }
         $this->portfolio->last_updated = date('Y-m-d H:i:s', $transactions[0]['timestamp'] / 1000);
         $this->portfolio->save();
-        Cache::put("sync_transactions_$this->jobId", $transactions, 3600);
+        Redis::set("sync_transactions_$this->jobId", json_encode($transactions), 'EX', 3600);
     }
 }

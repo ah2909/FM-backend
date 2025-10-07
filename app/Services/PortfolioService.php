@@ -1,12 +1,22 @@
 <?php
 namespace App\Services;
 
+use App\DataProviders\CexServiceProvider;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\DataProviders\CoinGeckoProvider;
 
 class PortfolioService
 {
+    private $coingecko;
+    private $cexService;
+
+    public function __construct(CoinGeckoProvider $coingecko, CexServiceProvider $cexService)
+    {
+        $this->coingecko = $coingecko;
+        $this->cexService = $cexService;
+    }
+
     //Clone from ExchangeService, using in StoreUserBalance command
     //The reason is not construct ExchangeService that need user_id get from JWT
     public function getPriceOfPort($assets)
@@ -16,10 +26,8 @@ class PortfolioService
                 return strtoupper($a['symbol']) . '/USDT';
             }, $assets->toArray());
 
-            $response = Http::post(config('app.cex_service_url') . '/cex/ticker', [
-                'symbols' => $listSymbols
-            ])->throw()->json();
-            $tickers = $response['data'] ?? [];
+            $response = $this->cexService->fetchTicker($listSymbols);
+            $tickers = $response ?? [];
 
             $result = [];
             foreach ($assets as $asset) {
@@ -31,19 +39,9 @@ class PortfolioService
                     $percentChange = $tickers[$formattedSymbol]['percentage'];
                 }
                 else {
-                    // Fetch price from coingecko API if not found in tickers
-                    $tmp = strtolower($asset->symbol);
-                    $coingecko = Http::withHeaders([
-                        'accept' => 'application/json',
-                        'x-cg-demo-api-key' => config('app.coingecko_api_key'),
-                    ])->get(config('app.coingecko_url', 'https://api.coingecko.com/api/v3') . '/simple/price', [
-                        'vs_currencies' => 'usd',
-                        'symbols' => $tmp,
-                    ])->json();
-                    if (isset($coingecko[$tmp]['usd'])) {
-                        $price = $coingecko[$tmp]['usd'];
-                        $percentChange = 0; // No percent change available from coingecko
-                    }
+                    // Fetch price from Coingecko provider if not found in tickers  
+                    $price = $this->coingecko->getCurrentPrice(strtolower($asset->symbol));
+                    $percentChange = 0;
                 }
 
                 $result[$asset->symbol] = [
@@ -121,7 +119,6 @@ class PortfolioService
         
         $averageBuyPrice = ($totalQuantity > 0) ? ($totalCost / $totalQuantity) : 0;
         // $unrealizedPnL = ($totalAmount > 0) ? (($currentPrice * $totalAmount) - $totalCost) : 0;
-        Log::info("Average Buy Price: $averageBuyPrice");
     
         return [
             'average_price' => round($averageBuyPrice, 4),

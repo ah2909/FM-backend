@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\DataProviders\CexServiceProvider;
 use App\Models\Portfolio;
 use App\Models\Transaction;
 use App\Services\PortfolioService;
@@ -26,7 +27,7 @@ class UpdatePortfolioAssets implements ShouldQueue
      */
     public function __construct($exchange, $credentials, $user_id, $cex_name)
     {
-        $this->exchange = $exchange;
+        $this->exchange = [$exchange];
         $this->credentials = $credentials;
         $this->user_id = $user_id;
         $this->cex_name = $cex_name;
@@ -35,14 +36,11 @@ class UpdatePortfolioAssets implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(): void
+    public function handle(CexServiceProvider $cexService): void
     {
         try {
-            $response = Http::post(config('app.cex_service_url') . '/cex/portfolio', [
-                'credentials' => $this->credentials,
-                'exchanges' => $this->exchange,
-            ])->throw()->json();
-            $balance = $response['data'][$this->cex_name]['total'];
+            $response = $cexService->getPortfolioBalance($this->credentials, $this->exchange);
+            $balance = $response[$this->cex_name]['total'];
             if(empty($balance)) return;
             // Filter balance to only include assets in the user's portfolio
             $portfolio = Portfolio::with(['assets'])->where('user_id', $this->user_id)->first();
@@ -99,19 +97,14 @@ class UpdatePortfolioAssets implements ShouldQueue
                 PortfolioService::storeRecentActivity($this->user_id, 'Update asset', $listId[$portfolioSymbol[$index]], count($trade->json()['data'] ?? []));
             }
             DB::commit();
+            
+            $cexService->emitUpdatePortfolioEvent(true, $this->user_id);
             // Clear Redis cache for the user
-            $emit = Http::post(config('app.cex_service_url') . '/cex/update-portfolio', [
-                'user_id' => $this->user_id,
-                'status' => true,
-            ])->throw()->json();
             Redis::del("cex_info_{$this->user_id}");
         }
         catch (\Throwable $th) {
             DB::rollBack();
-            $emit = Http::post(config('app.cex_service_url') . '/cex/update-portfolio', [
-                'user_id' => $this->user_id,
-                'status' => false,
-            ])->throw()->json();
+            $cexService->emitUpdatePortfolioEvent(false, $this->user_id);
             Log::error("Failed to update portfolio assets: " . $th->getMessage());
         }
     }
