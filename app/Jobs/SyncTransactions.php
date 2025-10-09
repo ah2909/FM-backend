@@ -81,15 +81,18 @@ class SyncTransactions implements ShouldQueue
                     ->orderBy('transact_date')
                     ->get();
                 $avg_price = PortfolioService::calculateAvgPrice($transaction_history);
-                $updated_amount = $transaction['side'] === 'buy' ? (int)$transaction['amount'] : -(int)$transaction['amount'];
+                $updated_amount = $transaction['side'] === 'buy' ? floatval($transaction['amount']) : -floatval($transaction['amount']);
                 DB::update('UPDATE portfolio_asset 
-                        SET amount = amount + ?, avg_price = ? 
-                        WHERE portfolio_id = ? AND asset_id = ?', [
-                    $updated_amount,
-                    $avg_price['average_price'],
-                    $this->portfolio->id,
-                    $listId[$asset]
-                ]);
+                        SET amount = amount + :amount, 
+                            avg_price = :avg_price 
+                        WHERE portfolio_id = :portfolio_id 
+                        AND asset_id = :asset_id', [
+                        'amount' => $updated_amount,
+                        'avg_price' => $avg_price['average_price'],
+                        'portfolio_id' => $this->portfolio->id,
+                        'asset_id' => $listId[$asset]
+                    ]
+                );
                 DB::commit();
             }
             catch (\Exception $e) {
