@@ -16,7 +16,7 @@ class AssetController extends Controller
     {
         try {
             $user_id = request()->attributes->get('user')->id;
-            $asset = User::find($user_id)->assets()->get();
+            $asset = User::find($user_id)->assets;
             return $this->successResponse($asset);
         } catch (\Throwable $th) {
             return $this->handleException($th, ['user_id' => $user_id]);

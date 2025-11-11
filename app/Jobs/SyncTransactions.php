@@ -73,15 +73,16 @@ class SyncTransactions implements ShouldQueue
                     'exchange_id' => config('exchanges.' . strtolower($transaction['exchange']) . '_id'),
                     'quantity' => $transaction['amount'],
                     'price' => $transaction['price'],
-                    'type' => $transaction['side'],
+                    'type' => strtoupper($transaction['side']),
                     'transact_date' => date('Y-m-d H:i:s', $transaction['timestamp'] / 1000),
                 ]);
+                
                 $transaction_history = Transaction::where('portfolio_id', $this->portfolio->id)
                     ->where('asset_id', $listId[$asset])
                     ->orderBy('transact_date')
                     ->get();
                 $avg_price = PortfolioService::calculateAvgPrice($transaction_history);
-                $updated_amount = $transaction['side'] === 'buy' ? floatval($transaction['amount']) : -floatval($transaction['amount']);
+                $updated_amount = $transaction['side'] === 'buy' ? (float)$transaction['amount'] : (float)-$transaction['amount'];
                 DB::update('UPDATE portfolio_asset 
                         SET amount = amount + :amount, 
                             avg_price = :avg_price 
@@ -102,7 +103,7 @@ class SyncTransactions implements ShouldQueue
                 continue; // Skip this transaction and continue with the next one
             }
         }
-        $this->portfolio->last_updated = date('Y-m-d H:i:s', $transactions[0]['timestamp'] / 1000);
+        $this->portfolio->last_updated = date('Y-m-d H:i:s', $transactions[count($transactions) - 1]['timestamp'] / 1000);
         $this->portfolio->save();
         Redis::set("sync_transactions_$this->jobId", json_encode($transactions), 'EX', 3600);
     }

@@ -4,6 +4,7 @@ use App\Http\Controllers\AssetController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ExchangeController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\TradingController;
 use App\Http\Middleware\JWTAuth;
 
 Route::middleware([JWTAuth::class])->group(function () {
@@ -20,6 +21,13 @@ Route::middleware([JWTAuth::class])->group(function () {
         Route::get('/balance', [PortfolioController::class, 'getBalanceByUserID']);
         Route::get('/recent-activity', [PortfolioController::class, 'getRecentActivity']);
         Route::post('/import-transactions', [PortfolioController::class, 'importPortfolioTransactionsCSV']);
+    });
+
+    Route::prefix('trading')->group(function () {
+        Route::get('/futures/account', [TradingController::class, 'getFuturesAccountInfo']);
+        Route::post('/futures/ticker', [TradingController::class, 'getFuturesTicker']);
+        Route::post('/futures/positions', [TradingController::class, 'getFuturesPositions']);
+        Route::post('/analyze', [TradingController::class, 'analyzeSymbol']);
     });
 
     Route::prefix('asset')->group(function () {

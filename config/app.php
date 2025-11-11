@@ -108,6 +108,8 @@ return [
     'frontend_url' => env('FRONTEND_URL'),
     'auth_service_url' => env('AUTH_SERVICE_URL'),
     'cex_service_url' => env('CEX_SERVICE_URL'),
+    'trading_service_url' => env('TRADING_SERVICE_URL'),
+
     'coingecko_url' => env('COINGECKO_URL'),
     'coingecko_api_key' => env('COINGECKO_API_KEY'),
 
