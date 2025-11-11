@@ -111,18 +111,18 @@ class PortfolioService
                     }
                 }
             
-                $realizedPnL += ($tx['cost'] - $sellCost);
+                // $realizedPnL += ($tx['cost'] - $sellCost);
                 $totalCost -= $sellCost;
                 $totalQuantity = $totalQuantity - $tx['quantity'] < 0 ? 0 : $totalQuantity - $tx['quantity'];
             }
         }
         
-        $averageBuyPrice = ($totalQuantity > 0) ? ($totalCost / $totalQuantity) : 0;
+        $averageBuyPrice = ($totalQuantity > 0 && $totalCost > 0) ? ($totalCost / $totalQuantity) : 0;
         // $unrealizedPnL = ($totalAmount > 0) ? (($currentPrice * $totalAmount) - $totalCost) : 0;
     
         return [
             'average_price' => round($averageBuyPrice, 4),
-            'realized_pnl' => round($realizedPnL, 4)
+            // 'realized_pnl' => round($realizedPnL, 4)
         ];
     }
 

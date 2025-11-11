@@ -2,6 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return xdebug_info();
-});
+// Route::get('/', function () {
+//     return xdebug_info();
+// });
