@@ -45,8 +45,10 @@ class SyncTransactions implements ShouldQueue
         
         $transactions = $this->exchangeService->syncTransactions($symbols, $lastUpdated, $this->userId);
         if (empty($transactions)) {
-           Redis::set("sync_transactions_$this->jobId", json_encode([]), 'EX', 3600);
-           return;
+            Redis::set("sync_transactions_$this->jobId", json_encode([]), 'EX', 3600);
+            $this->portfolio->last_updated = date('Y-m-d');
+            $this->portfolio->save();
+            return;
         }
 
         // Store recent activity
