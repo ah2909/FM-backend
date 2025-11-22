@@ -25,7 +25,6 @@ jobs:
             cd /var/crypto-portfolio/portfolio_backend_prod/src/backend
             git pull origin main
             cd /var/crypto-portfolio/portfolio_backend_prod
-            docker compose down
-            docker rm portfolio_backend_prod-backend
-            docker compose up -d --build
+            docker compose up -d --build websocket
+            docker image prune -f
           EOF

@@ -6,6 +6,7 @@ use App\Models\Portfolio;
 use App\Services\PortfolioService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class StoreUserBalance extends Command
 {
@@ -40,30 +41,34 @@ class StoreUserBalance extends Command
 
         foreach ($portfolios as $portfolio) {
             if(count($portfolio->assets) === 0) {
-                $this->info("Portfolio ID {$portfolio->id} has no assets, skipping.");
                 continue;
             }
-            $portfolio->assets = $portfolio->assets->map(function($asset) {
-                if (isset($asset->pivot->amount)) {
-                    $asset->amount = $asset->pivot->amount;
-                    $asset->avg_price = $asset->pivot->avg_price;
-                    unset($asset->pivot);
-                }
-                return $asset;
-            });
-            $priceData = $this->portfolioService->getPriceOfPort($portfolio->assets);
-            $portfolio = $this->portfolioService->calculatePortfolioValue($portfolio, $priceData);
-            
-            // Store the balance in the database
-            DB::table('portfolio_balance')->insert([
-                'balance' => $portfolio->totalValue,
-                'portfolio_id' => $portfolio->id,
-                'user_id' => $portfolio->user_id,
-                'date' => now(),
-            ]);
-        }
 
-        $this->info('Balance of portfolios have been stored successfully.');
-        
+            try {
+                $portfolio->assets = $portfolio->assets->map(function($asset) {
+                    if (isset($asset->pivot->amount)) {
+                        $asset->amount = $asset->pivot->amount;
+                        $asset->avg_price = $asset->pivot->avg_price;
+                        unset($asset->pivot);
+                    }
+                    return $asset;
+                });
+                $priceData = $this->portfolioService->getPriceOfPort($portfolio->assets);
+                $portfolio = $this->portfolioService->calculatePortfolioValue($portfolio, $priceData);
+                
+                // Store the balance in the database
+                DB::table('portfolio_balance')->insert([
+                    'balance' => $portfolio->totalValue,
+                    'portfolio_id' => $portfolio->id,
+                    'user_id' => $portfolio->user_id,
+                    'date' => now(),
+                ]);
+            } catch (\Exception $e) {
+                $date = now()->toDateString();
+                Log::error("Failed to calculate portfolio balance of {$portfolio->user_id} on date {$date}: " . $e->getMessage());
+                continue;
+            }
+            
+        }
     }
 }
