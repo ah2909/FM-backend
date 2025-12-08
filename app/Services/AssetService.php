@@ -22,12 +22,11 @@ class AssetService
         if (!$asset) {
             $symbolInfo = $this->coingecko->getAssetInfo($symbol);
             if (isset($symbolInfo) && isset($symbolInfo['id'])) {
-                $data = Asset::create([
+                $asset = Asset::create([
                     'symbol' => $symbol,
                     'name' => $symbolInfo['name'],
                     'img_url' => $symbolInfo['image'],
                 ]);
-                $asset[] = $data;
             } else {
                 return null; // Asset not found
             }
