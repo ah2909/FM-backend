@@ -19,6 +19,11 @@ use Illuminate\Support\Facades\Redis;
 use Illuminate\Validation\ValidationException;
 
 
+/**
+ * @group Portfolio
+ * 
+ * APIs for managing user portfolios, assets within portfolios, and transaction history.
+ */
 class PortfolioController extends Controller
 {
     use ApiResponse, ErrorHandler;
@@ -37,8 +42,9 @@ class PortfolioController extends Controller
         $this->portfolioService = $portfolioService;
     }
 
-    public function calculatePortfolioBalance($portfolio) {
-        $portfolio->assets = $portfolio->assets->map(function($asset) {
+    public function calculatePortfolioBalance($portfolio)
+    {
+        $portfolio->assets = $portfolio->assets->map(function ($asset) {
             if (isset($asset->pivot->amount)) {
                 $asset->amount = $asset->pivot->amount;
                 $asset->avg_price = $asset->pivot->avg_price;
@@ -51,6 +57,33 @@ class PortfolioController extends Controller
         return $portfolio;
     }
 
+    /**
+     * Get user portfolio
+     * 
+     * Retrieves the current user's portfolio including assets, balances, and calculated values.
+     * 
+     * @authenticated
+     * @response {
+     *  "success": true,
+     *  "message": null,
+     *  "data": {
+     *    "id": 1,
+     *    "name": "Main Portfolio",
+     *    "description": "Wealth growth portfolio",
+     *    "total_value": 52450.75,
+     *    "assets": [
+     *      {
+     *        "id": 1,
+     *        "name": "Bitcoin",
+     *        "symbol": "BTC",
+     *        "amount": "1.5",
+     *        "avg_price": "45000.00",
+     *        "current_price": "65000.00"
+     *      }
+     *    ]
+     *  }
+     * }
+     */
     public function getPortByUserID()
     {
         try {
@@ -63,11 +96,11 @@ class PortfolioController extends Controller
                 'assets',
                 'transactions'
             ])->where('user_id', $user_id)->first();
-            
+
             if (!$portfolio) {
                 return $this->successResponse([]);
             }
-            if($portfolio->assets->isEmpty()) {
+            if ($portfolio->assets->isEmpty()) {
                 return $this->successResponse($portfolio);
             }
 
@@ -90,6 +123,28 @@ class PortfolioController extends Controller
     //     }
     // }
 
+    /**
+     * Create portfolio
+     * 
+     * Creates a new portfolio for the authenticated user.
+     * 
+     * @authenticated
+     * @bodyParam name string required The name of the portfolio. Example: HODL Bag
+     * @bodyParam description string The description of the portfolio. Example: Long term holdings
+     * 
+     * @response 201 {
+     *  "success": true,
+     *  "message": "Portfolio created successfully",
+     *  "data": {
+     *    "id": 2,
+     *    "name": "HODL Bag",
+     *    "description": "Long term holdings",
+     *    "user_id": 1,
+     *    "created_at": "2024-01-27T14:10:00.000000Z",
+     *    "updated_at": "2024-01-27T14:10:00.000000Z"
+     *  }
+     * }
+     */
     public function store(Request $request)
     {
         try {
@@ -100,7 +155,7 @@ class PortfolioController extends Controller
 
             $validatedData['user_id'] = $request->attributes->get('user')->id;
             $portfolio = Portfolio::create($validatedData);
-            
+
             return $this->successResponse($portfolio, 'Portfolio created successfully', 201);
         } catch (ValidationException $e) {
             return response()->json([
@@ -112,6 +167,25 @@ class PortfolioController extends Controller
         }
     }
 
+    /**
+     * Update portfolio
+     * 
+     * Updates the name or description of an existing portfolio.
+     * 
+     * @authenticated
+     * @urlParam portfolio_id integer required The ID of the portfolio to update. Example: 1
+     * @bodyParam name string The name of the portfolio.
+     * @bodyParam description string The description of the portfolio.
+     * 
+     * @response {
+     *  "success": true,
+     *  "message": "Portfolio updated successfully",
+     *  "data": {
+     *    "id": 1,
+     *    "name": "Updated Portfolio Name"
+     *  }
+     * }
+     */
     public function update(Request $request, $portfolio_id)
     {
         try {
@@ -123,12 +197,25 @@ class PortfolioController extends Controller
             $portfolio->update($validatedData);
             Redis::del("portfolio_user_{$portfolio->user_id}");
             return $this->successResponse($portfolio, 'Portfolio updated successfully');
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             return $this->handleException($e, ['portfolio_id' => $portfolio_id]);
         }
     }
 
+    /**
+     * Delete portfolio
+     * 
+     * Deletes a portfolio and all associated data.
+     * 
+     * @authenticated
+     * @urlParam portfolio_id integer required The ID of the portfolio to delete. Example: 1
+     * 
+     * @response 204 {
+     *  "success": true,
+     *  "message": "Portfolio deleted successfully",
+     *  "data": null
+     * }
+     */
     public function destroy($portfolio_id)
     {
         try {
@@ -140,6 +227,23 @@ class PortfolioController extends Controller
         }
     }
 
+    /**
+     * Add token to portfolio
+     * 
+     * Adds a specific asset (cryptocurrency) to a user's portfolio.
+     * 
+     * @authenticated
+     * @bodyParam portfolio_id integer required The ID of the portfolio. Example: 1
+     * @bodyParam token object required Token details.
+     * @bodyParam token.symbol string required Token symbol (e.g. BTC). Example: BTC
+     * @bodyParam token.amount number required Amount of token. Example: 0.5
+     * 
+     * @response 201 {
+     *  "success": true,
+     *  "message": "Token added to portfolio successfully",
+     *  "data": null
+     * }
+     */
     public function addTokenToPort(Request $request)
     {
         try {
@@ -150,7 +254,7 @@ class PortfolioController extends Controller
             $user_id = $request->attributes->get('user')->id;
             Redis::del("portfolio_user_{$user_id}");
             AddTokenToPort::dispatch($validatedData, $user_id, $this->exchangeService);
-            return $this->successResponse(null, 'Token added to portfolio successfully', 201);     
+            return $this->successResponse(null, 'Token added to portfolio successfully', 201);
         } catch (\Exception $e) {
             return $this->handleException($e, ['request' => $request->all()]);
         }
@@ -171,7 +275,7 @@ class PortfolioController extends Controller
     //         if (!$tokenID) {
     //             throw new \Exception("Token {$validatedData['token']['symbol']} not found.");
     //         }
-           
+
     //         $portfolio->assets()->attach($tokenID, ['amount' => $validatedData['token']['amount']]);
 
     //         return $this->successResponse(null, 'Add token to portfolio successfully', 201);
@@ -180,7 +284,23 @@ class PortfolioController extends Controller
     //     }
     // }
 
-    public function removeTokenfromPort(Request $request) {
+    /**
+     * Remove token from portfolio
+     * 
+     * Removes an asset from the portfolio and deletes all related transactions.
+     * 
+     * @authenticated
+     * @bodyParam portfolio_id integer required The ID of the portfolio. Example: 1
+     * @bodyParam token string required The symbol of the token to remove. Example: BTC
+     * 
+     * @response 200 {
+     *  "success": true,
+     *  "message": "Remove token from portfolio successfully",
+     *  "data": null
+     * }
+     */
+    public function removeTokenfromPort(Request $request)
+    {
         /*
             $portfolio_id: int
             $token: 'BTC
@@ -193,7 +313,7 @@ class PortfolioController extends Controller
             $portfolio = Portfolio::findOrFail($request['portfolio_id']);
             $token = $this->assetService->checkAssetExists($validatedData['token']);
             $portfolio->assets()->detach($token);
-            
+
             $portfolio->transactions()->where('asset_id', $token->id)->delete();
             $user_id = $request->attributes->get('user')->id;
             Redis::del("portfolio_user_{$user_id}");
@@ -205,7 +325,25 @@ class PortfolioController extends Controller
         }
     }
 
-    public function syncPortfolioTransactions(Request $request) {
+    /**
+     * Sync portfolio transactions
+     * 
+     * Initiates a background job to sync transactions from connected exchanges for this portfolio.
+     * 
+     * @authenticated
+     * @bodyParam portfolio_id integer required The ID of the portfolio. Example: 1
+     * 
+     * @response {
+     *  "success": true,
+     *  "message": "Portfolio transactions are syncing",
+     *  "data": {
+     *    "status": "syncing",
+     *    "job_id": "1_1"
+     *  }
+     * }
+     */
+    public function syncPortfolioTransactions(Request $request)
+    {
         /*
             $portfolio_id: int
         */
@@ -216,8 +354,8 @@ class PortfolioController extends Controller
             $portfolio = Portfolio::findOrFail($validatedData['portfolio_id']);
             $user_id = $request->attributes->get('user')->id;
             $jobId = "{$user_id}_{$portfolio->id}";
-            
-            if(Redis::exists("sync_transactions_{$jobId}")) {
+
+            if (Redis::exists("sync_transactions_{$jobId}")) {
                 return $this->successResponse(['status' => 'success'], 'Portfolio transactions are already synced', 200);
             }
 
@@ -228,6 +366,27 @@ class PortfolioController extends Controller
         }
     }
 
+    /**
+     * Get portfolio balance history
+     * 
+     * Retrieves historical balance data points for the user's portfolio.
+     * 
+     * @authenticated
+     * @response {
+     *  "success": true,
+     *  "message": null,
+     *  "data": [
+     *    {
+     *      "balance": "55000.00",
+     *      "date": "2024-01-27"
+     *    },
+     *    {
+     *      "balance": "54200.00",
+     *      "date": "2024-01-26"
+     *    }
+     *  ]
+     * }
+     */
     public function getBalanceByUserID()
     {
         try {
@@ -236,16 +395,40 @@ class PortfolioController extends Controller
                 ->where('user_id', $user_id)
                 ->orderBy('date', 'desc')
                 ->get();
-            
+
             if (!$balance) {
                 return $this->successResponse([]);
-            }              
+            }
             return $this->successResponse($balance);
         } catch (\Exception $e) {
             return $this->handleException($e, ['user_id' => $user_id]);
         }
     }
 
+    /**
+     * Get recent activity
+     * 
+     * Retrieves a list of recent activities/transactions performed by the user.
+     * 
+     * @authenticated
+     * @response {
+     *  "success": true,
+     *  "message": null,
+     *  "data": [
+     *    {
+     *      "id": 10,
+     *      "user_id": 1,
+     *      "action": "Buy",
+     *      "asset_id": 1,
+     *      "amount": "0.1",
+     *      "symbol": "BTC",
+     *      "name": "Bitcoin",
+     *      "img_url": "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+     *      "created_at": "2024-01-27T12:00:00.000000Z"
+     *    }
+     *  ]
+     * }
+     */
     public function getRecentActivity()
     {
         try {
@@ -256,13 +439,28 @@ class PortfolioController extends Controller
                 ->where('user_id', $user_id)
                 ->orderBy('recent_activity.created_at', 'desc')
                 ->get();
-            
+
             return $this->successResponse($recentActivities);
         } catch (\Exception $e) {
             return $this->handleException($e, ['user_id' => $user_id]);
         }
     }
 
+    /**
+     * Import CSV transactions
+     * 
+     * Uploads a CSV file of transactions to be imported into the portfolio.
+     * 
+     * @authenticated
+     * @bodyParam file file required The CSV file exported from an exchange.
+     * @bodyParam exchange string required The name of the exchange the CSV is from. Example: binance
+     * 
+     * @response 201 {
+     *  "success": true,
+     *  "message": "Portfolio transactions imported successfully",
+     *  "data": null
+     * }
+     */
     public function importPortfolioTransactionsCSV(Request $request)
     {
         $userId = $request->attributes->get('user')->id;
