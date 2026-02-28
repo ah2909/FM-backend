@@ -13,11 +13,6 @@ use App\Traits\ApiResponse;
 use App\Traits\ErrorHandler;
 use Illuminate\Support\Facades\Redis;
 
-/**
- * @group Exchange
- * 
- * APIs for connecting to Centralized Exchanges (CEX) and retrieving account info/balances.
- */
 class ExchangeController extends Controller
 {
     use ApiResponse, ErrorHandler;
@@ -30,31 +25,6 @@ class ExchangeController extends Controller
         $this->cexService = $cexService;
     }
 
-    /**
-     * Get supported CEXs
-     * 
-     * Retrieves a list of all supported Centralized Exchanges and indicates if the user has already connected them.
-     * 
-     * @authenticated
-     * @response {
-     *  "success": true,
-     *  "message": null,
-     *  "data": [
-     *    {
-     *      "id": 1,
-     *      "name": "binance",
-     *      "img_url": "https://example.com/binance.png",
-     *      "is_connected": true
-     *    },
-     *    {
-     *      "id": 2,
-     *      "name": "okx",
-     *      "img_url": "https://example.com/okx.png",
-     *      "is_connected": false
-     *    }
-     *  ]
-     * }
-     */
     public function get_supported_cex(Request $request)
     {
         try {
@@ -75,27 +45,6 @@ class ExchangeController extends Controller
         }
     }
 
-    /**
-     * Connect to a CEX
-     * 
-     * Connects the user's account to a centralized exchange using API credentials.
-     * 
-     * @authenticated
-     * @bodyParam cex_name string required The name of the exchange (e.g., binance, okx). Example: binance
-     * @bodyParam api_key string required The API key provided by the exchange.
-     * @bodyParam secret_key string required The Secret key provided by the exchange.
-     * @bodyParam password string Optional passphrase for exchanges that require it (like OKX or Kucoin).
-     * 
-     * @response 201 {
-     *  "success": true,
-     *  "message": "Connect successfully",
-     *  "data": []
-     * }
-     * @response 400 {
-     *  "success": false,
-     *  "error": "Invalid API credentials"
-     * }
-     */
     public function connect_cex(Request $request)
     {
         try {
@@ -136,33 +85,6 @@ class ExchangeController extends Controller
         }
     }
 
-    /**
-     * Get CEX account info
-     * 
-     * Fetches real-time balance and account information from all connected exchanges.
-     * 
-     * @authenticated
-     * @response {
-     *  "success": true,
-     *  "message": "Get info from CEX successfully",
-     *  "data": [
-     *    {
-     *      "symbol": "BTC",
-     *      "free": "0.5",
-     *      "locked": "0.0",
-     *      "total": "0.5",
-     *      "img_url": "https://assets.coingecko.com/coins/images/1/large/bitcoin.png"
-     *    },
-     *    {
-     *      "symbol": "ETH",
-     *      "free": "10.0",
-     *      "locked": "2.0",
-     *      "total": "12.0",
-     *      "img_url": "https://assets.coingecko.com/coins/images/279/large/ethereum.png"
-     *    }
-     *  ]
-     * }
-     */
     public function get_info_from_cex()
     {
         try {
@@ -194,33 +116,6 @@ class ExchangeController extends Controller
         }
     }
 
-    /**
-     * Get CEX transaction history
-     * 
-     * Retrieves historical trade data for specific symbols from connected exchanges.
-     * 
-     * @authenticated
-     * @bodyParam symbols string[] required List of symbols to fetch history for. Example: ["BTC/USDT", "ETH/USDT"]
-     * 
-     * @response {
-     *  "success": true,
-     *  "message": "Get transaction history successfully",
-     *  "data": [
-     *    {
-     *      "symbol": "BTC/USDT",
-     *      "id": "123456",
-     *      "order": "78910",
-     *      "type": "limit",
-     *      "side": "buy",
-     *      "price": "45000.00",
-     *      "amount": "0.01",
-     *      "cost": "450.00",
-     *      "timestamp": 1706364000000,
-     *      "datetime": "2024-01-27T14:00:00.000Z"
-     *    }
-     *  ]
-     * }
-     */
     public function get_history_transaction(Request $request)
     {
         try {
