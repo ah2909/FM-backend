@@ -251,14 +251,55 @@ class PortfolioController extends Controller
     {
         try {
             $user_id = request()->attributes->get('user')->id;
+
             $recentActivities = DB::table('recent_activity')
                 ->join('assets', 'recent_activity.asset_id', '=', 'assets.id')
                 ->select('recent_activity.*', 'assets.symbol', 'assets.img_url', 'assets.name')
-                ->where('user_id', $user_id)
+                ->where('recent_activity.user_id', $user_id)
                 ->orderBy('recent_activity.created_at', 'desc')
                 ->get();
 
-            return $this->successResponse($recentActivities);
+            $unreadCount = $recentActivities->where('is_read', false)->count();
+
+            return $this->successResponse([
+                'notifications' => $recentActivities,
+                'unread_count'  => $unreadCount,
+            ]);
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['user_id' => $user_id]);
+        }
+    }
+
+    public function markNotificationRead($id)
+    {
+        try {
+            $user_id = request()->attributes->get('user')->id;
+
+            $affected = DB::table('recent_activity')
+                ->where('id', $id)
+                ->where('user_id', $user_id)
+                ->update(['is_read' => true]);
+
+            if ($affected === 0) {
+                return $this->errorResponse('Notification not found', 404);
+            }
+
+            return $this->successResponse(null, 'Notification marked as read');
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['notification_id' => $id, 'user_id' => $user_id]);
+        }
+    }
+
+    public function markAllNotificationsRead()
+    {
+        $user_id = request()->attributes->get('user')->id;
+        try {
+            DB::table('recent_activity')
+                ->where('user_id', $user_id)
+                ->where('is_read', false)
+                ->update(['is_read' => true]);
+
+            return $this->successResponse(null, 'All notifications marked as read');
         } catch (\Exception $e) {
             return $this->handleException($e, ['user_id' => $user_id]);
         }

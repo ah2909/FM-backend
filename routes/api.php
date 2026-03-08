@@ -20,6 +20,8 @@ Route::middleware([JWTAuth::class])->group(function () {
         Route::post('/sync-transactions', [PortfolioController::class, 'syncPortfolioTransactions']);
         Route::get('/balance', [PortfolioController::class, 'getBalanceByUserID']);
         Route::get('/recent-activity', [PortfolioController::class, 'getRecentActivity']);
+        Route::patch('/recent-activity/read-all', [PortfolioController::class, 'markAllNotificationsRead']);
+        Route::patch('/recent-activity/{id}/read', [PortfolioController::class, 'markNotificationRead']);
         Route::post('/import-transactions', [PortfolioController::class, 'importPortfolioTransactionsCSV']);
         Route::get('/analyze', [PortfolioAnalyzerController::class, 'analyze']);
     });

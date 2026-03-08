@@ -21,7 +21,7 @@ class AnalyzePortfolio implements ShouldQueue
     protected int $portfolioId;
     protected string $jobId;
 
-    public $timeout = 120;
+    public $timeout = 300;
 
     /**
      * Create a new job instance.
@@ -72,7 +72,7 @@ class AnalyzePortfolio implements ShouldQueue
                 ];
             })->values()->toArray();
 
-            $response = Http::timeout(90)
+            $response = Http::timeout($this->timeout - 1)
                 ->post(config('app.portfolio_analyzer_url') . '/api/analyze', [
                     'user_id'      => (string) $this->userId,
                     'portfolio'    => $portfolioPayload,
