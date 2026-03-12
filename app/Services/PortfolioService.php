@@ -127,18 +127,19 @@ class PortfolioService
         ];
     }
 
-    public static function storeRecentActivity($userId, $type, $assetId, $count = null) {
+    public static function storeRecentActivity($userId, $type, $assetId, $count = null, $amount = null) {
         $id = DB::table('recent_activity')->insertGetId([
             'user_id'           => $userId,
             'type'              => $type,
             'asset_id'          => $assetId,
             'transaction_count' => $count,
+            'amount'            => $amount,
             'created_at'        => now(),
         ]);
 
         $notification = DB::table('recent_activity')
             ->join('assets', 'recent_activity.asset_id', '=', 'assets.id')
-            ->select('recent_activity.*', 'assets.symbol', 'assets.img_url', 'assets.name')
+            ->select('recent_activity.*', 'assets.symbol', 'assets.name', 'assets.img_url')
             ->where('recent_activity.id', $id)
             ->first();
 

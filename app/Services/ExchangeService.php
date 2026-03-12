@@ -217,4 +217,21 @@ class ExchangeService
         ])->throw()->json();
         return $response['data'] ?? [];
     }
+
+    public function syncDepositsWithdrawals(array $currencies, $since, $userId): array
+    {
+        try {
+            $response = Http::post(config('app.cex_service_url') . '/cex/sync-deposits-withdrawals', [
+                'credentials' => $this->credentials,
+                'exchanges'   => $this->exchange,
+                'currencies'  => $currencies,
+                'since'       => $since,
+                'user_id'     => $userId,
+            ])->throw()->json();
+            return $response['data'] ?? [];
+        } catch (\Exception $e) {
+            Log::error("Failed to fetch deposits/withdrawals: " . $e->getMessage());
+            return [];
+        }
+    }
 }
