@@ -25,14 +25,15 @@ class ExchangeController extends Controller
         $this->cexService = $cexService;
     }
 
-    public function get_supported_cex(Request $request) {
+    public function get_supported_cex(Request $request)
+    {
         try {
             $cexs = DB::select('select * from CEXs');
             $user_id = $request->attributes->get('user')->id;
             $cex_connected = DB::select('select cex_id from exchanges where user_id=?', [$user_id]);
             foreach ($cex_connected as $tmp) {
-                foreach($cexs as $cex) {
-                    if($cex->id === $tmp->cex_id) {
+                foreach ($cexs as $cex) {
+                    if ($cex->id === $tmp->cex_id) {
                         $cex->is_connected = true;
                         break;
                     }
@@ -42,10 +43,10 @@ class ExchangeController extends Controller
         } catch (\Throwable $th) {
             return $this->handleException($th, ['user_id' => $user_id]);
         }
-        
     }
-    
-    public function connect_cex(Request $request) {
+
+    public function connect_cex(Request $request)
+    {
         try {
             $validatedData = $request->validate([
                 'cex_name' => 'required|string|max:50',
@@ -62,7 +63,7 @@ class ExchangeController extends Controller
                 'api_secret' => $validatedData['secret_key'],
                 'password' => isset($validatedData['password']) ? $validatedData['password'] : null,
             ];
-            
+
             UpdatePortfolioAssets::dispatch($cex_name, $credentials, $user_id, $cex_name);
             $isValid = $this->cexService->validateAPICredentials($cex_name, $credentials[$cex_name]);
             if (!$isValid) {
@@ -70,31 +71,31 @@ class ExchangeController extends Controller
             }
             Exchange::create([
                 'cex_id' => $cex_id[0]->id,
-                'api_key'=> Crypt::encryptString($validatedData['api_key']),
+                'api_key' => Crypt::encryptString($validatedData['api_key']),
                 'secret_key' => Crypt::encryptString($validatedData['secret_key']),
                 'password' => isset($validatedData['password']) ? Crypt::encryptString($validatedData['password']) : null,
                 'user_id' => $user_id
             ]);
             return $this->successResponse([], 'Connect successfully', 201);
-        }
-        catch (\Throwable $th) {
+        } catch (\Throwable $th) {
             return $this->handleException($th, [
                 'cex_name' => $cex_name,
                 'user_id' => $user_id,
             ]);
-        } 
+        }
     }
 
-    public function get_info_from_cex() {
-        try {    
-            $user_id = request()->attributes->get('user')->id; 
+    public function get_info_from_cex()
+    {
+        try {
+            $user_id = request()->attributes->get('user')->id;
             if (Redis::exists("cex_info_{$user_id}")) {
                 $data = json_decode(Redis::get("cex_info_{$user_id}"), true);
                 return $this->successResponse($data, 'Get info from CEX successfully');
             }
             $balance = $this->exchangeService->getBalances();
             $assets = DB::select('select symbol, img_url from assets');
-             
+
             $data = [];
             $symbols = [];
             foreach ($balance as $item) {
@@ -115,18 +116,18 @@ class ExchangeController extends Controller
         }
     }
 
-    public function get_history_transaction(Request $request) {
+    public function get_history_transaction(Request $request)
+    {
         try {
             $validatedData = $request->validate([
                 'symbols' => 'required|array',
             ]);
             $trans = $this->exchangeService->getSymbolTransactions($validatedData['symbols'], 'binance');
-            if(empty($trans)) {
+            if (empty($trans)) {
                 return $this->successResponse([], 'No transaction history found for the provided symbols.');
             }
             return $this->successResponse($trans, 'Get transaction history successfully');
-        }
-        catch (\Throwable $th) {
+        } catch (\Throwable $th) {
             return $this->handleException($th, [
                 'symbols' => $request->input('symbols'),
             ]);

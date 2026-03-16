@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Validation\ValidationException;
 
-
 class PortfolioController extends Controller
 {
     use ApiResponse, ErrorHandler;
@@ -37,8 +36,9 @@ class PortfolioController extends Controller
         $this->portfolioService = $portfolioService;
     }
 
-    public function calculatePortfolioBalance($portfolio) {
-        $portfolio->assets = $portfolio->assets->map(function($asset) {
+    public function calculatePortfolioBalance($portfolio)
+    {
+        $portfolio->assets = $portfolio->assets->map(function ($asset) {
             if (isset($asset->pivot->amount)) {
                 $asset->amount = $asset->pivot->amount;
                 $asset->avg_price = $asset->pivot->avg_price;
@@ -63,11 +63,11 @@ class PortfolioController extends Controller
                 'assets',
                 'transactions'
             ])->where('user_id', $user_id)->first();
-            
+
             if (!$portfolio) {
                 return $this->successResponse([]);
             }
-            if($portfolio->assets->isEmpty()) {
+            if ($portfolio->assets->isEmpty()) {
                 return $this->successResponse($portfolio);
             }
 
@@ -100,7 +100,7 @@ class PortfolioController extends Controller
 
             $validatedData['user_id'] = $request->attributes->get('user')->id;
             $portfolio = Portfolio::create($validatedData);
-            
+
             return $this->successResponse($portfolio, 'Portfolio created successfully', 201);
         } catch (ValidationException $e) {
             return response()->json([
@@ -123,8 +123,7 @@ class PortfolioController extends Controller
             $portfolio->update($validatedData);
             Redis::del("portfolio_user_{$portfolio->user_id}");
             return $this->successResponse($portfolio, 'Portfolio updated successfully');
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             return $this->handleException($e, ['portfolio_id' => $portfolio_id]);
         }
     }
@@ -150,7 +149,7 @@ class PortfolioController extends Controller
             $user_id = $request->attributes->get('user')->id;
             Redis::del("portfolio_user_{$user_id}");
             AddTokenToPort::dispatch($validatedData, $user_id, $this->exchangeService);
-            return $this->successResponse(null, 'Token added to portfolio successfully', 201);     
+            return $this->successResponse(null, 'Token added to portfolio successfully', 201);
         } catch (\Exception $e) {
             return $this->handleException($e, ['request' => $request->all()]);
         }
@@ -171,7 +170,7 @@ class PortfolioController extends Controller
     //         if (!$tokenID) {
     //             throw new \Exception("Token {$validatedData['token']['symbol']} not found.");
     //         }
-           
+
     //         $portfolio->assets()->attach($tokenID, ['amount' => $validatedData['token']['amount']]);
 
     //         return $this->successResponse(null, 'Add token to portfolio successfully', 201);
@@ -180,7 +179,8 @@ class PortfolioController extends Controller
     //     }
     // }
 
-    public function removeTokenfromPort(Request $request) {
+    public function removeTokenfromPort(Request $request)
+    {
         /*
             $portfolio_id: int
             $token: 'BTC
@@ -193,7 +193,7 @@ class PortfolioController extends Controller
             $portfolio = Portfolio::findOrFail($request['portfolio_id']);
             $token = $this->assetService->checkAssetExists($validatedData['token']);
             $portfolio->assets()->detach($token);
-            
+
             $portfolio->transactions()->where('asset_id', $token->id)->delete();
             $user_id = $request->attributes->get('user')->id;
             Redis::del("portfolio_user_{$user_id}");
@@ -205,7 +205,8 @@ class PortfolioController extends Controller
         }
     }
 
-    public function syncPortfolioTransactions(Request $request) {
+    public function syncPortfolioTransactions(Request $request)
+    {
         /*
             $portfolio_id: int
         */
@@ -216,8 +217,8 @@ class PortfolioController extends Controller
             $portfolio = Portfolio::findOrFail($validatedData['portfolio_id']);
             $user_id = $request->attributes->get('user')->id;
             $jobId = "{$user_id}_{$portfolio->id}";
-            
-            if(Redis::exists("sync_transactions_{$jobId}")) {
+
+            if (Redis::exists("sync_transactions_{$jobId}")) {
                 return $this->successResponse(['status' => 'success'], 'Portfolio transactions are already synced', 200);
             }
 
@@ -236,10 +237,10 @@ class PortfolioController extends Controller
                 ->where('user_id', $user_id)
                 ->orderBy('date', 'desc')
                 ->get();
-            
+
             if (!$balance) {
                 return $this->successResponse([]);
-            }              
+            }
             return $this->successResponse($balance);
         } catch (\Exception $e) {
             return $this->handleException($e, ['user_id' => $user_id]);
@@ -250,14 +251,55 @@ class PortfolioController extends Controller
     {
         try {
             $user_id = request()->attributes->get('user')->id;
+
             $recentActivities = DB::table('recent_activity')
                 ->join('assets', 'recent_activity.asset_id', '=', 'assets.id')
                 ->select('recent_activity.*', 'assets.symbol', 'assets.img_url', 'assets.name')
-                ->where('user_id', $user_id)
+                ->where('recent_activity.user_id', $user_id)
                 ->orderBy('recent_activity.created_at', 'desc')
                 ->get();
-            
-            return $this->successResponse($recentActivities);
+
+            $unreadCount = $recentActivities->where('is_read', false)->count();
+
+            return $this->successResponse([
+                'notifications' => $recentActivities,
+                'unread_count'  => $unreadCount,
+            ]);
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['user_id' => $user_id]);
+        }
+    }
+
+    public function markNotificationRead($id)
+    {
+        try {
+            $user_id = request()->attributes->get('user')->id;
+
+            $affected = DB::table('recent_activity')
+                ->where('id', $id)
+                ->where('user_id', $user_id)
+                ->update(['is_read' => true]);
+
+            if ($affected === 0) {
+                return $this->errorResponse('Notification not found', 404);
+            }
+
+            return $this->successResponse(null, 'Notification marked as read');
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['notification_id' => $id, 'user_id' => $user_id]);
+        }
+    }
+
+    public function markAllNotificationsRead()
+    {
+        $user_id = request()->attributes->get('user')->id;
+        try {
+            DB::table('recent_activity')
+                ->where('user_id', $user_id)
+                ->where('is_read', false)
+                ->update(['is_read' => true]);
+
+            return $this->successResponse(null, 'All notifications marked as read');
         } catch (\Exception $e) {
             return $this->handleException($e, ['user_id' => $user_id]);
         }

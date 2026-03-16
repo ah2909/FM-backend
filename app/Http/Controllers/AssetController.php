@@ -11,7 +11,6 @@ use App\Traits\ErrorHandler;
 class AssetController extends Controller
 {
     use ApiResponse, ErrorHandler;
-    
     public function index()
     {
         try {

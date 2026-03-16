@@ -3,6 +3,7 @@ namespace App\Services;
 
 use App\DataProviders\CexServiceProvider;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\DataProviders\CoinGeckoProvider;
 
@@ -126,13 +127,26 @@ class PortfolioService
         ];
     }
 
-    public static function storeRecentActivity($userId, $type, $assetId, $count = null) {
-        DB::table('recent_activity')->insert([
-            'user_id' => $userId,
-            'type' => $type,
-            'asset_id' => $assetId,
+    public static function storeRecentActivity($userId, $type, $assetId, $count = null, $amount = null) {
+        $id = DB::table('recent_activity')->insertGetId([
+            'user_id'           => $userId,
+            'type'              => $type,
+            'asset_id'          => $assetId,
             'transaction_count' => $count,
-            'created_at' => now(),
+            'amount'            => $amount,
+            'created_at'        => now(),
+        ]);
+
+        $notification = DB::table('recent_activity')
+            ->join('assets', 'recent_activity.asset_id', '=', 'assets.id')
+            ->select('recent_activity.*', 'assets.symbol', 'assets.name', 'assets.img_url')
+            ->where('recent_activity.id', $id)
+            ->first();
+
+        Http::post(config('app.cex_service_url') . '/emit-event', [
+            'event'  => 'new-notification',
+            'data'   => $notification,
+            'userId' => $userId,
         ]);
     }
 }

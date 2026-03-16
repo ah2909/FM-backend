@@ -86,7 +86,11 @@ class AddTokenToPort implements ShouldQueue
             $count = count($this->data['token']);
             $cexService->emitEvent(
                 'add-token-to-port', 
-                ['success' => true, 'message' => "$count tokens added to portfolio successfully"], 
+                [
+                    'success' => true, 
+                    'message' => "$count tokens added to portfolio successfully",
+                    'data' => $portfolio->assets
+                ], 
                 $this->userId
             );
         }
