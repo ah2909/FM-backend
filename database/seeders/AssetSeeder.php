@@ -284,7 +284,6 @@ class AssetSeeder extends Seeder
             ['id' => 337, 'symbol' => 'knc', 'name' => 'Kyber Network Crystal', 'img_url' => 'https://coin-images.coingecko.com/coins/images/14899/large/knc_logo.png?1696514574'],
             ['id' => 338, 'symbol' => 'twt', 'name' => 'Trust Wallet Token', 'img_url' => 'https://coin-images.coingecko.com/coins/images/11085/large/Trust.png?1696511026'],
             ['id' => 339, 'symbol' => 'sc', 'name' => 'Siacoin', 'img_url' => 'https://coin-images.coingecko.com/coins/images/289/large/siacoin.png?1696501569'],
-            ['id' => 240, 'symbol' => 'zen', 'name' => 'Horizen', 'img_url' => 'https://coin-images.coingecko.com/coins/images/691/large/horizen.png?1696501878'],
             ['id' => 341, 'symbol' => 'bnt', 'name' => 'Bancor', 'img_url' => 'https://coin-images.coingecko.com/coins/images/736/large/bancor.png?1696501908'],
             ['id' => 342, 'symbol' => 'iost', 'name' => 'IOST', 'img_url' => 'https://coin-images.coingecko.com/coins/images/2523/large/IOST.png?1696503348'],
             ['id' => 343, 'symbol' => 'waxp', 'name' => 'WAX', 'img_url' => 'https://coin-images.coingecko.com/coins/images/1372/large/WAX_Token_RBG_Coin.png?1696502441'],
