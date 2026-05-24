@@ -2,9 +2,6 @@
 
 namespace App\Providers;
 
-use Dedoc\Scramble\Scramble;
-use Dedoc\Scramble\Support\Generator\OpenApi;
-use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -15,12 +12,14 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Gate::define('viewApiDocs', fn (?Authenticatable $user) => app()->environment(['local', 'development']));
+        if (class_exists(\Dedoc\Scramble\Scramble::class)) {
+            Gate::define('viewApiDocs', fn (?Authenticatable $user) => app()->environment(['local', 'development']));
 
-        Scramble::afterOpenApiGenerated(function (OpenApi $openApi) {
-            $openApi->secure(
-                SecurityScheme::http('bearer')
-            );
-        });
+            \Dedoc\Scramble\Scramble::afterOpenApiGenerated(function (\Dedoc\Scramble\Support\Generator\OpenApi $openApi) {
+                $openApi->secure(
+                    \Dedoc\Scramble\Support\Generator\SecurityScheme::http('bearer')
+                );
+            });
+        }
     }
 }
