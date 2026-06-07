@@ -3,6 +3,7 @@
 namespace App\DataProviders;
 
 use Illuminate\Support\Facades\Http;
+use App\Support\RealtimeEvent;
 
 class CexServiceProvider
 {
@@ -48,18 +49,7 @@ class CexServiceProvider
         return $response['success'];
     }
 
-    public function emitUpdatePortfolioEvent(string $status, int $userId) {
-        Http::post($this->baseUrl . '/cex/update-portfolio', [
-            'user_id' => $userId,
-            'status' => $status,
-        ])->throw()->json();
-    }
-
     public function emitEvent(string $event, array $data, int $userId) {
-        Http::post(config('app.cex_service_url') . '/emit-event', [
-            'event' => $event,
-            'data' => $data,
-            'userId' => $userId,
-        ])->throw()->json();
+        RealtimeEvent::publish($event, $data, $userId);
     }
 }

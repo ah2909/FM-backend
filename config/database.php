@@ -148,7 +148,7 @@ return [
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('APP_ENV') !== 'production' ? '{dev}' : '{prod}',
+            'prefix' => '',
         ],
 
         'default' => [

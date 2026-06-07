@@ -2,6 +2,7 @@
 namespace App\Services;
 
 use App\DataProviders\CexServiceProvider;
+use App\Support\RealtimeEvent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -143,10 +144,6 @@ class PortfolioService
             ->where('recent_activity.id', $id)
             ->first();
 
-        Http::post(config('app.cex_service_url') . '/emit-event', [
-            'event'  => 'new-notification',
-            'data'   => $notification,
-            'userId' => $userId,
-        ]);
+        RealtimeEvent::publish('new-notification', $notification, $userId);
     }
 }

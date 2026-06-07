@@ -98,13 +98,13 @@ class UpdatePortfolioAssets implements ShouldQueue
             }
             DB::commit();
             
-            $cexService->emitUpdatePortfolioEvent(true, $this->user_id);
+            $cexService->emitEvent('update_portfolio', ['success' => true], $this->user_id);
             // Clear Redis cache for the user
             Redis::del("cex_info_{$this->user_id}");
         }
         catch (\Throwable $th) {
             DB::rollBack();
-            $cexService->emitUpdatePortfolioEvent(false, $this->user_id);
+            $cexService->emitEvent('update_portfolio', ['success' => false], $this->user_id);
             Log::error("Failed to update portfolio assets: " . $th->getMessage());
         }
     }
