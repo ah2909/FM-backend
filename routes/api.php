@@ -24,6 +24,7 @@ Route::middleware([JWTAuth::class])->group(function () {
         Route::patch('/recent-activity/{id}/read', [PortfolioController::class, 'markNotificationRead']);
         Route::post('/import-transactions', [PortfolioController::class, 'importPortfolioTransactionsCSV']);
         Route::get('/analyze', [PortfolioAnalyzerController::class, 'analyze']);
+        Route::post('/analyze-token', [PortfolioAnalyzerController::class, 'analyzeToken']);
     });
 
     Route::prefix('asset')->group(function () {
