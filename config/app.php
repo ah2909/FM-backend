@@ -113,6 +113,10 @@ return [
     'coingecko_url' => env('COINGECKO_URL'),
     'coingecko_api_key' => env('COINGECKO_API_KEY'),
 
+    'yahoo_finance_url' => env('YAHOO_FINANCE_URL'),
+    'ssi_url' => env('SSI_URL'),
+    'binance_p2p_url' => env('BINANCE_P2P_URL'),
+
     /*
     |--------------------------------------------------------------------------
     | Maintenance Mode Driver

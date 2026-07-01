@@ -3,6 +3,7 @@
 use App\Http\Controllers\AssetController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ExchangeController;
+use App\Http\Controllers\MarketController;
 use App\Http\Controllers\PortfolioAnalyzerController;
 use App\Http\Controllers\PortfolioController;
 use App\Http\Middleware\JWTAuth;
@@ -36,6 +37,11 @@ Route::middleware([JWTAuth::class])->group(function () {
         Route::get('/supported-cex', [ExchangeController::class, 'get_supported_cex']);
         Route::post('/connect', [ExchangeController::class, 'connect_cex']);
         Route::get('/info', [ExchangeController::class, 'get_info_from_cex']);
+    });
+
+    Route::prefix('market')->group(function () {
+        Route::get('/p2p', [MarketController::class, 'p2p']);
+        Route::get('/performance', [MarketController::class, 'performance']);
     });
 
     Route::prefix('user')->group(function () {
