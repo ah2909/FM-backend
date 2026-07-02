@@ -28,14 +28,17 @@ class Portfolio extends Model
 
 	protected $dateFormat = 'Y-m-d H:i:s';
 	protected $casts = [
-		'user_id' => 'int'
+		'user_id' => 'int',
+		'share_amounts' => 'bool'
 	];
 
 	protected $fillable = [
 		'name',
 		'description',
 		'user_id',
-		'last_updated'
+		'last_updated',
+		'share_token',
+		'share_amounts'
 	];
 	
 

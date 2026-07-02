@@ -6,7 +6,11 @@ use App\Http\Controllers\ExchangeController;
 use App\Http\Controllers\MarketController;
 use App\Http\Controllers\PortfolioAnalyzerController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PublicPortfolioController;
 use App\Http\Middleware\JWTAuth;
+
+// Public share links — no auth, rate limited
+Route::middleware('throttle:30,1')->get('public/portfolio/{token}', [PublicPortfolioController::class, 'show']);
 
 Route::middleware([JWTAuth::class])->group(function () {
 
@@ -26,6 +30,8 @@ Route::middleware([JWTAuth::class])->group(function () {
         Route::post('/import-transactions', [PortfolioController::class, 'importPortfolioTransactionsCSV']);
         Route::get('/analyze', [PortfolioAnalyzerController::class, 'analyze']);
         Route::post('/analyze-token', [PortfolioAnalyzerController::class, 'analyzeToken']);
+        Route::post('/{portfolio_id}/share', [PortfolioController::class, 'enableShare']);
+        Route::delete('/{portfolio_id}/share', [PortfolioController::class, 'disableShare']);
     });
 
     Route::prefix('asset')->group(function () {

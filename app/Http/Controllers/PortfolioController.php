@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PortfolioController extends Controller
@@ -302,6 +303,54 @@ class PortfolioController extends Controller
             return $this->successResponse(null, 'All notifications marked as read');
         } catch (\Exception $e) {
             return $this->handleException($e, ['user_id' => $user_id]);
+        }
+    }
+
+    public function enableShare(Request $request, $portfolio_id)
+    {
+        try {
+            $validatedData = $request->validate([
+                'share_amounts' => 'sometimes|boolean',
+            ]);
+            $user_id = $request->attributes->get('user')->id;
+            $portfolio = Portfolio::where('id', $portfolio_id)
+                ->where('user_id', $user_id)
+                ->firstOrFail();
+
+            $portfolio->share_token = $portfolio->share_token ?? Str::random(16);
+            $portfolio->share_amounts = $validatedData['share_amounts'] ?? false;
+            $portfolio->save();
+
+            Redis::del("portfolio_user_{$user_id}");
+            Redis::del("public_portfolio_{$portfolio->share_token}");
+
+            return $this->successResponse([
+                'share_token' => $portfolio->share_token,
+                'share_amounts' => $portfolio->share_amounts,
+            ], 'Portfolio sharing enabled');
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['portfolio_id' => $portfolio_id]);
+        }
+    }
+
+    public function disableShare(Request $request, $portfolio_id)
+    {
+        try {
+            $user_id = $request->attributes->get('user')->id;
+            $portfolio = Portfolio::where('id', $portfolio_id)
+                ->where('user_id', $user_id)
+                ->firstOrFail();
+
+            if ($portfolio->share_token) {
+                Redis::del("public_portfolio_{$portfolio->share_token}");
+            }
+            $portfolio->share_token = null;
+            $portfolio->save();
+            Redis::del("portfolio_user_{$user_id}");
+
+            return $this->successResponse(null, 'Portfolio sharing disabled');
+        } catch (\Exception $e) {
+            return $this->handleException($e, ['portfolio_id' => $portfolio_id]);
         }
     }
 
