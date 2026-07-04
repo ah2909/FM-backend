@@ -41,6 +41,22 @@ class CoinGeckoProvider
         return $response[0] ?? null;
     }
 
+    public function getGlobal(): array
+    {
+        return Http::timeout(8)->withHeaders([
+            'accept' => 'application/json',
+            'x-cg-demo-api-key' => $this->apiKey,
+        ])->get("{$this->baseUrl}/global")->json() ?? [];
+    }
+
+    public function getTrending(): array
+    {
+        return Http::timeout(8)->withHeaders([
+            'accept' => 'application/json',
+            'x-cg-demo-api-key' => $this->apiKey,
+        ])->get("{$this->baseUrl}/search/trending")->json() ?? [];
+    }
+
     public function getMarketChart(string $id, int $days): array
     {
         $response = Http::timeout(8)->withHeaders([

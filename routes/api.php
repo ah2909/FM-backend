@@ -48,6 +48,8 @@ Route::middleware([JWTAuth::class])->group(function () {
     Route::prefix('market')->group(function () {
         Route::get('/p2p', [MarketController::class, 'p2p']);
         Route::get('/performance', [MarketController::class, 'performance']);
+        Route::get('/global', [MarketController::class, 'globalStats']);
+        Route::get('/trending', [MarketController::class, 'trending']);
     });
 
     Route::prefix('user')->group(function () {

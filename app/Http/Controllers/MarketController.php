@@ -38,4 +38,22 @@ class MarketController extends Controller
             return $this->handleException($th, ['range' => $range ?? null]);
         }
     }
+
+    public function globalStats()
+    {
+        try {
+            return $this->successResponse($this->marketService->getGlobalStats());
+        } catch (\Throwable $th) {
+            return $this->handleException($th);
+        }
+    }
+
+    public function trending()
+    {
+        try {
+            return $this->successResponse($this->marketService->getTrending());
+        } catch (\Throwable $th) {
+            return $this->handleException($th);
+        }
+    }
 }

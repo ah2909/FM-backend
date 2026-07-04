@@ -97,6 +97,55 @@ class MarketService
         return $result;
     }
 
+    public function getGlobalStats(): array
+    {
+        $cacheKey = 'market:global';
+        if ($cached = Cache::get($cacheKey)) {
+            return $cached;
+        }
+
+        $d = $this->coingecko->getGlobal()['data'] ?? [];
+        $result = [
+            'totalMarketCap' => $d['total_market_cap']['usd'] ?? 0,
+            'totalVolume' => $d['total_volume']['usd'] ?? 0,
+            'marketCapChange24h' => $d['market_cap_change_percentage_24h_usd'] ?? 0,
+            'btcDominance' => $d['market_cap_percentage']['btc'] ?? 0,
+            'ethDominance' => $d['market_cap_percentage']['eth'] ?? 0,
+        ];
+
+        if (!empty($d)) {
+            Cache::put($cacheKey, $result, 3600);
+        }
+        return $result;
+    }
+
+    public function getTrending(): array
+    {
+        $cacheKey = 'market:trending';
+        if ($cached = Cache::get($cacheKey)) {
+            return $cached;
+        }
+
+        $coins = $this->coingecko->getTrending()['coins'] ?? [];
+        $result = array_map(function ($c) {
+            $item = $c['item'] ?? [];
+            return [
+                'id' => $item['id'] ?? '',
+                'name' => $item['name'] ?? '',
+                'symbol' => $item['symbol'] ?? '',
+                'rank' => $item['market_cap_rank'] ?? null,
+                'thumb' => $item['thumb'] ?? '',
+                'price' => $item['data']['price'] ?? null,
+                'change24h' => $item['data']['price_change_percentage_24h']['usd'] ?? null,
+            ];
+        }, $coins);
+
+        if (!empty($result)) {
+            Cache::put($cacheKey, $result, 3600);
+        }
+        return $result;
+    }
+
     // Normalize a date=>close map to indexed-to-100 points so mixed-unit assets compare.
     private function rebase(array $closes): array
     {
