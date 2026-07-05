@@ -64,7 +64,6 @@ class ExchangeController extends Controller
                 'password' => isset($validatedData['password']) ? $validatedData['password'] : null,
             ];
 
-            UpdatePortfolioAssets::dispatch($cex_name, $credentials, $user_id, $cex_name);
             $isValid = $this->cexService->validateAPICredentials($cex_name, $credentials[$cex_name]);
             if (!$isValid) {
                 return $this->errorResponse('Invalid API credentials', 400);
@@ -76,6 +75,8 @@ class ExchangeController extends Controller
                 'password' => isset($validatedData['password']) ? Crypt::encryptString($validatedData['password']) : null,
                 'user_id' => $user_id
             ]);
+            // Dispatch only after the credentials are proven valid and the Exchange row exists
+            UpdatePortfolioAssets::dispatch($cex_name, $credentials, $user_id, $cex_name);
             return $this->successResponse([], 'Connect successfully', 201);
         } catch (\Throwable $th) {
             return $this->handleException($th, [
@@ -85,22 +86,24 @@ class ExchangeController extends Controller
         }
     }
 
-    public function get_info_from_cex()
+    public function get_info_from_cex(Request $request)
     {
         try {
-            $user_id = request()->attributes->get('user')->id;
-            if (Redis::exists("cex_info_{$user_id}")) {
-                $data = json_decode(Redis::get("cex_info_{$user_id}"), true);
-                return $this->successResponse($data, 'Get info from CEX successfully');
+            $user_id = $request->attributes->get('user')->id;
+            // refresh=1 bypasses caches, e.g. after the user fixed API-key permissions
+            $refresh = $request->boolean('refresh');
+            if (!$refresh && Redis::exists("cex_info_v2_{$user_id}")) {
+                $cached = json_decode(Redis::get("cex_info_v2_{$user_id}"), true);
+                return $this->successResponse($cached['data'], 'Get info from CEX successfully', 200, $cached['meta'] ?? null);
             }
-            $balance = $this->exchangeService->getBalances();
+            $result = $this->exchangeService->getBalances($refresh);
+            $balance = $result['assets'];
+            $meta = $result['meta'];
             $assets = DB::select('select symbol, img_url from assets');
 
             $data = [];
-            $symbols = [];
             foreach ($balance as $item) {
                 $data[$item['symbol']] = $item;
-                $symbols[] = $item['symbol'] . '/USDT';
             }
             // Iterate through array1 and merge with matching elements from array2
             foreach ($assets as $asset) {
@@ -109,8 +112,8 @@ class ExchangeController extends Controller
                 }
             }
             $data = array_values($data);
-            Redis::set("cex_info_$user_id", json_encode($data), 'EX', 15 * 60);
-            return $this->successResponse($data, 'Get info from CEX successfully');
+            Redis::set("cex_info_v2_$user_id", json_encode(['data' => $data, 'meta' => $meta]), 'EX', 15 * 60);
+            return $this->successResponse($data, 'Get info from CEX successfully', 200, $meta);
         } catch (\Throwable $th) {
             return $this->handleException($th, []);
         }

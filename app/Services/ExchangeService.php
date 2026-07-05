@@ -8,11 +8,12 @@ use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
 class ExchangeService
 {
-    protected $exchange;
-    protected $credentials;
+    protected $exchange = [];
+    protected $credentials = [];
     protected $cexService;
 
     public function __construct(CexServiceProvider $cexService)
@@ -56,86 +57,98 @@ class ExchangeService
         $this->cexService = $cexService;
     }
 
-    public function getBalances()
+    public function getBalances(bool $forceRefresh = false)
     {
-        $assets = [];
+        $userId = request()->get('user')->id;
         $stablecoins = ['USDT', 'USDC'];
-        $results = [];
 
-        $response = $this->cexService->getPortfolioBalance($this->credentials, $this->exchange);
+        // Raw scan cached briefly: /exchange/info and queued jobs often fire within the same window
+        if (!$forceRefresh && Redis::exists("cex_raw_{$userId}")) {
+            $response = json_decode(Redis::get("cex_raw_{$userId}"), true);
+        } else {
+            $response = $this->cexService->getPortfolioBalance($this->credentials, $this->exchange);
+            Redis::set("cex_raw_{$userId}", json_encode($response), 'EX', 120);
+        }
 
-        foreach ($response as $exchangeName => $balance) {
-            try {
-                // Prepare symbols list for tickers
-                $listSymbols = [];
-                foreach ($balance['total'] as $currency => $amount) {
-                    if ($amount <= 0) continue;
-                    $listSymbols[] = strtoupper($currency) . '/USDT'; 
-                }
+        $assets = [];
+        $statuses = [];
+        $reconciliation = [];
 
-                // Fetch tickers only for non-empty balances
-                $tickers = [];
-                if (!empty($listSymbols)) {
-                    $response = $this->cexService->fetchTicker($listSymbols);
-                    $tickers = $response ?? [];
-                }
+        foreach ($response as $exchangeName => $result) {
+            if (!is_array($result)) continue;
 
-                $results[$exchangeName] = [
-                    'balance' => $balance,
-                    'tickers' => $tickers
-                ];
-            } catch (\Exception $e) {
-                Log::error("$exchangeName balance fetch failed: {$e->getMessage()}");
+            if (isset($result['status_error'])) {
+                $statuses[$exchangeName] = ['exchange' => 'error'];
+                Log::error("$exchangeName wallet scan failed: {$result['status_error']}");
                 continue;
             }
-        }
 
-        // Process results
-        foreach ($results as $exchangeName => $result) {
-            try {
-                $balance = $result['balance'];
-                $tickers = $result['tickers'] ?? [];
+            // Legacy Node shape (pre multi-wallet rollout): flat total map is the spot wallet
+            $wallets = $result['wallets'] ?? ['spot' => ['balances' => $result['total'] ?? [], 'status' => 'ok']];
 
-                foreach ($balance['total'] as $currency => $amount) {
+            foreach ($wallets as $walletType => $wallet) {
+                $status = $wallet['status'] ?? 'error';
+                $statuses[$exchangeName][$walletType] = $status;
+                // Failed wallets are excluded, never counted as zero
+                if ($status !== 'ok') continue;
+
+                foreach ($wallet['balances'] ?? [] as $currency => $amount) {
+                    if (!is_numeric($amount) || $amount == 0) continue;
                     $currency = strtoupper($currency);
-                    if ($amount <= 0) continue;
-
-                    // Handle stablecoins (price = 1)
-                    if (in_array($currency, $stablecoins)) {
-                        $price = 1;
-                    } else {
-                        // Find price using preferred quotes
-                        $price = null;
-                        foreach ($stablecoins as $quote) {
-                            $quote = strtoupper($quote);
-                            $symbol = "$currency/$quote";
-                            if (isset($tickers[$symbol])) {
-                                $price = $tickers[$symbol]['last'];
-                                break;
-                            }
-                        }
-                    }
-
-                    if (isset($assets[$currency])) {
-                        $assets[$currency]['amount'] += $amount;
-                        $assets[$currency]['value'] += $price !== null ? $price * $amount : 0;
-                        $assets[$currency]['exchanges'][] = $exchangeName;
-                    } else {
-                        $assets[$currency] = [
-                            'symbol' => $currency,
-                            'price' => $price,
-                            'amount' => $amount,
-                            'value' => $price !== null ? $price * $amount : 0,
-                            'exchanges' => [$exchangeName]
-                        ];
-                    }
+                    $assets[$currency]['wallets'][] = [
+                        'exchange' => $exchangeName,
+                        'wallet_type' => $walletType,
+                        'amount' => $amount,
+                    ];
                 }
-            } catch (\Exception $e) {
-                Log::error("$exchangeName result processing failed: {$e->getMessage()}");
+            }
+
+            if (!empty($result['reconciliation'])) {
+                $reconciliation[$exchangeName] = $result['reconciliation'];
             }
         }
 
-        return $assets;
+        // One deduped ticker call across all exchanges and wallets
+        $listSymbols = [];
+        foreach (array_keys($assets) as $currency) {
+            if (!in_array($currency, $stablecoins)) {
+                $listSymbols[] = "$currency/USDT";
+            }
+        }
+        $tickers = [];
+        if (!empty($listSymbols)) {
+            try {
+                $tickers = $this->cexService->fetchTicker($listSymbols) ?? [];
+            } catch (\Exception $e) {
+                Log::error("Ticker fetch failed: {$e->getMessage()}");
+            }
+        }
+
+        foreach ($assets as $currency => $entry) {
+            $amount = array_sum(array_column($entry['wallets'], 'amount'));
+            if ($amount <= 0) {
+                // Net negative/zero (borrowed): nothing importable, keep out of the list
+                unset($assets[$currency]);
+                continue;
+            }
+            $price = in_array($currency, $stablecoins) ? 1 : ($tickers["$currency/USDT"]['last'] ?? null);
+            $assets[$currency] = [
+                'symbol' => $currency,
+                'price' => $price,
+                'amount' => $amount,
+                'value' => $price !== null ? $price * $amount : 0,
+                'exchanges' => array_values(array_unique(array_column($entry['wallets'], 'exchange'))),
+                'wallets' => $entry['wallets'],
+            ];
+        }
+
+        return [
+            'assets' => $assets,
+            'meta' => [
+                'statuses' => $statuses,
+                'reconciliation' => $reconciliation,
+            ],
+        ];
     }
 
     public function getSymbolTransactions($symbols)

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\DataProviders\CexServiceProvider;
 use App\Models\Portfolio;
+use App\Models\PortfolioAssetWallet;
 use App\Models\Transaction;
 use App\Services\AssetService;
 use App\Services\PortfolioService;
@@ -76,9 +77,35 @@ class AddTokenToPort implements ShouldQueue
             }
             DB::transaction(function () use ($formattedTransactions, $listTokenID, $listTokenAmount, $listAvgPrice, $portfolio) {
                 Transaction::upsert($formattedTransactions, [], ['type', 'price', 'quantity', 'transact_date']);
-                $assetsToAttach = array_combine($listTokenID, array_map(fn($amount, $avgPrice) => 
+                $assetsToAttach = array_combine($listTokenID, array_map(fn($amount, $avgPrice) =>
                 ['amount' => $amount, 'avg_price' => $avgPrice['average_price']], $listTokenAmount, $listAvgPrice));
                 $portfolio->assets()->attach($assetsToAttach);
+
+                // Persist per-wallet breakdown passed through from /exchange/info
+                $pivotIds = DB::table('portfolio_asset')
+                    ->where('portfolio_id', $portfolio->id)
+                    ->whereIn('asset_id', $listTokenID)
+                    ->pluck('id', 'asset_id');
+                $walletRows = [];
+                foreach (array_values($this->data['token']) as $index => $token) {
+                    $assetId = $listTokenID[$index];
+                    foreach ($token['wallets'] ?? [] as $w) {
+                        if (!isset($w['exchange'], $w['wallet_type'], $w['amount'], $pivotIds[$assetId])) continue;
+                        $walletRows[] = [
+                            'portfolio_asset_id' => $pivotIds[$assetId],
+                            'exchange' => $w['exchange'],
+                            'wallet_type' => $w['wallet_type'],
+                            'amount' => $w['amount'],
+                        ];
+                    }
+                }
+                if (!empty($walletRows)) {
+                    PortfolioAssetWallet::upsert(
+                        $walletRows,
+                        ['portfolio_asset_id', 'exchange', 'wallet_type'],
+                        ['amount']
+                    );
+                }
             });
             foreach($listTokenID as $assetId) {
                 PortfolioService::storeRecentActivity($this->userId, 'Add asset', $assetId);

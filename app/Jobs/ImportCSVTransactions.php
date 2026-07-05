@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
 class ImportCSVTransactions implements ShouldQueue
 {
@@ -173,6 +174,7 @@ class ImportCSVTransactions implements ShouldQueue
                 ['success' => true, 'message' => "{$count} tokens updated transactions successfully"], 
                 $this->userId
             );
+            Redis::del("portfolio_user_v2_{$this->userId}");
         } catch (\Exception $e) {
             DB::rollBack();
             $cexService->emitEvent(

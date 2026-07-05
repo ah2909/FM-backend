@@ -6,6 +6,7 @@ use App\Jobs\AddTokenToPort;
 use App\Jobs\ImportCSVTransactions;
 use App\Jobs\SyncTransactions;
 use App\Models\Portfolio;
+use App\Models\PortfolioAssetWallet;
 use App\Models\Transaction;
 use App\Services\AssetService;
 use App\Services\ExchangeService;
@@ -39,10 +40,22 @@ class PortfolioController extends Controller
 
     public function calculatePortfolioBalance($portfolio)
     {
-        $portfolio->assets = $portfolio->assets->map(function ($asset) {
+        // One grouped query for all wallet breakdowns instead of one per asset
+        $pivotIds = $portfolio->assets->pluck('pivot.id')->filter()->all();
+        $walletsByPivot = empty($pivotIds)
+            ? collect()
+            : PortfolioAssetWallet::whereIn('portfolio_asset_id', $pivotIds)->get()->groupBy('portfolio_asset_id');
+
+        $portfolio->assets = $portfolio->assets->map(function ($asset) use ($walletsByPivot) {
             if (isset($asset->pivot->amount)) {
                 $asset->amount = $asset->pivot->amount;
                 $asset->avg_price = $asset->pivot->avg_price;
+                $asset->wallets = ($walletsByPivot[$asset->pivot->id] ?? collect())
+                    ->map(fn ($w) => [
+                        'exchange' => $w->exchange,
+                        'wallet_type' => $w->wallet_type,
+                        'amount' => $w->amount,
+                    ])->values();
                 unset($asset->pivot);
             }
             return $asset;
@@ -56,8 +69,8 @@ class PortfolioController extends Controller
     {
         try {
             $user_id = request()->attributes->get('user')->id;
-            if (Redis::exists("portfolio_user_{$user_id}")) {
-                $portfolio = json_decode(Redis::get("portfolio_user_{$user_id}"), true);
+            if (Redis::exists("portfolio_user_v2_{$user_id}")) {
+                $portfolio = json_decode(Redis::get("portfolio_user_v2_{$user_id}"), true);
                 return $this->successResponse($portfolio);
             }
             $portfolio = Portfolio::with([
@@ -73,7 +86,7 @@ class PortfolioController extends Controller
             }
 
             $portfolio = $this->calculatePortfolioBalance($portfolio);
-            Redis::set("portfolio_user_{$user_id}", json_encode($portfolio), 'EX', 120);
+            Redis::set("portfolio_user_v2_{$user_id}", json_encode($portfolio), 'EX', 120);
 
             return $this->successResponse($portfolio);
         } catch (\Exception $e) {
@@ -122,7 +135,7 @@ class PortfolioController extends Controller
             ]);
             $portfolio = Portfolio::findOrFail($portfolio_id);
             $portfolio->update($validatedData);
-            Redis::del("portfolio_user_{$portfolio->user_id}");
+            Redis::del("portfolio_user_v2_{$portfolio->user_id}");
             return $this->successResponse($portfolio, 'Portfolio updated successfully');
         } catch (\Exception $e) {
             return $this->handleException($e, ['portfolio_id' => $portfolio_id]);
@@ -148,7 +161,7 @@ class PortfolioController extends Controller
                 'token' => 'required|array'
             ]);
             $user_id = $request->attributes->get('user')->id;
-            Redis::del("portfolio_user_{$user_id}");
+            Redis::del("portfolio_user_v2_{$user_id}");
             AddTokenToPort::dispatch($validatedData, $user_id, $this->exchangeService);
             return $this->successResponse(null, 'Token added to portfolio successfully', 201);
         } catch (\Exception $e) {
@@ -197,7 +210,7 @@ class PortfolioController extends Controller
 
             $portfolio->transactions()->where('asset_id', $token->id)->delete();
             $user_id = $request->attributes->get('user')->id;
-            Redis::del("portfolio_user_{$user_id}");
+            Redis::del("portfolio_user_v2_{$user_id}");
             PortfolioService::storeRecentActivity($user_id, 'Remove asset', $token->id);
 
             return $this->successResponse(null, 'Remove token from portfolio successfully', 200);
@@ -321,7 +334,7 @@ class PortfolioController extends Controller
             $portfolio->share_amounts = $validatedData['share_amounts'] ?? false;
             $portfolio->save();
 
-            Redis::del("portfolio_user_{$user_id}");
+            Redis::del("portfolio_user_v2_{$user_id}");
             Redis::del("public_portfolio_{$portfolio->share_token}");
 
             return $this->successResponse([
@@ -346,7 +359,7 @@ class PortfolioController extends Controller
             }
             $portfolio->share_token = null;
             $portfolio->save();
-            Redis::del("portfolio_user_{$user_id}");
+            Redis::del("portfolio_user_v2_{$user_id}");
 
             return $this->successResponse(null, 'Portfolio sharing disabled');
         } catch (\Exception $e) {

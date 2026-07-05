@@ -45,7 +45,8 @@ class Portfolio extends Model
 	public function assets()
 	{
 		return $this->belongsToMany(Asset::class, 'portfolio_asset')
-					->withPivot('amount', 'avg_price')
+					->using(PortfolioAsset::class)
+					->withPivot('id', 'amount', 'avg_price')
 					->withTimestamps();
 	}
 
