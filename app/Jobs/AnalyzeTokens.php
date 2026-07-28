@@ -20,7 +20,7 @@ class AnalyzeTokens implements ShouldQueue
     protected string $symbol;
     protected string $jobId;
 
-    public $timeout = 300;
+    public $timeout = 120;
 
     // Per-symbol outlook cache TTL (1 day) — outlooks are user-independent facts.
     private const CACHE_TTL = 86400;

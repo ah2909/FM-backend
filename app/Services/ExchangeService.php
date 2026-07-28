@@ -15,11 +15,45 @@ class ExchangeService
     protected $exchange = [];
     protected $credentials = [];
     protected $cexService;
+    protected ?int $userId = null;
+    protected bool $credentialsLoaded = false;
 
     public function __construct(CexServiceProvider $cexService)
     {
-        $userId = request()->get('user')->id;
-        $keys = Exchange::where('user_id', $userId)->get();
+        $this->cexService = $cexService;
+    }
+
+    /**
+     * Scope this instance to a user explicitly, for contexts with no HTTP request
+     * (queued jobs, console commands).
+     */
+    public function forUser(int $userId): static
+    {
+        $this->userId = $userId;
+        $this->credentialsLoaded = false;
+        $this->exchange = [];
+        $this->credentials = [];
+
+        return $this;
+    }
+
+    protected function userId(): int
+    {
+        return $this->userId ??= request()->get('user')->id;
+    }
+
+    /**
+     * Decrypted API keys are loaded on first use, never in the constructor — that
+     * keeps them out of any object that gets serialized (e.g. a queued job payload).
+     */
+    protected function loadCredentials(): void
+    {
+        if ($this->credentialsLoaded) {
+            return;
+        }
+        $this->credentialsLoaded = true;
+
+        $keys = Exchange::where('user_id', $this->userId())->get();
         if ($keys) {
             foreach ($keys as $key) {
                 $apiKey = Crypt::decryptString($key['api_key']);
@@ -54,19 +88,32 @@ class ExchangeService
                 }
             }
         }
-        $this->cexService = $cexService;
+    }
+
+    protected function credentials(): array
+    {
+        $this->loadCredentials();
+
+        return $this->credentials;
+    }
+
+    protected function exchanges(): array
+    {
+        $this->loadCredentials();
+
+        return $this->exchange;
     }
 
     public function getBalances(bool $forceRefresh = false)
     {
-        $userId = request()->get('user')->id;
+        $userId = $this->userId();
         $stablecoins = ['USDT', 'USDC'];
 
         // Raw scan cached briefly: /exchange/info and queued jobs often fire within the same window
         if (!$forceRefresh && Redis::exists("cex_raw_{$userId}")) {
             $response = json_decode(Redis::get("cex_raw_{$userId}"), true);
         } else {
-            $response = $this->cexService->getPortfolioBalance($this->credentials, $this->exchange);
+            $response = $this->cexService->getPortfolioBalance($this->credentials(), $this->exchanges());
             Redis::set("cex_raw_{$userId}", json_encode($response), 'EX', 120);
         }
 
@@ -161,7 +208,7 @@ class ExchangeService
             return array_map(fn ($s) => $pool->post(config('app.cex_service_url') . '/cex/transaction', [
                 'symbol' => $s['name'],
                 'exchanges' => $s['exchange'],
-                'credentials' => $this->credentials,
+                'credentials' => $this->credentials(),
             ]), $filteredSymbols);
         });
 
@@ -171,7 +218,7 @@ class ExchangeService
         }));
         foreach ($okxSymbols as $symbol) {
             try {
-                $response = $this->cexService->getSymbolTransactions($symbol['name'], $symbol['exchange'], $this->credentials);
+                $response = $this->cexService->getSymbolTransactions($symbol['name'], $symbol['exchange'], $this->credentials());
 
                 if(empty($response)) {
                     $allTrades[$symbol['name']] = [];
@@ -222,8 +269,8 @@ class ExchangeService
 
     public function syncTransactions($symbols, $since, $userId) {
         $response = Http::post(config('app.cex_service_url') . '/cex/sync-transactions', [
-            'credentials' => $this->credentials,
-            'exchanges' => $this->exchange,
+            'credentials' => $this->credentials(),
+            'exchanges' => $this->exchanges(),
             'symbols' => $symbols,
             'since' => $since,
             'user_id' => $userId,
@@ -235,8 +282,8 @@ class ExchangeService
     {
         try {
             $response = Http::post(config('app.cex_service_url') . '/cex/sync-deposits-withdrawals', [
-                'credentials' => $this->credentials,
-                'exchanges'   => $this->exchange,
+                'credentials' => $this->credentials(),
+                'exchanges'   => $this->exchanges(),
                 'currencies'  => $currencies,
                 'since'       => $since,
                 'user_id'     => $userId,

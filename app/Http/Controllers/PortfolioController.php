@@ -162,7 +162,7 @@ class PortfolioController extends Controller
             ]);
             $user_id = $request->attributes->get('user')->id;
             Redis::del("portfolio_user_v2_{$user_id}");
-            AddTokenToPort::dispatch($validatedData, $user_id, $this->exchangeService);
+            AddTokenToPort::dispatch($validatedData, $user_id);
             return $this->successResponse(null, 'Token added to portfolio successfully', 201);
         } catch (\Exception $e) {
             return $this->handleException($e, ['request' => $request->all()]);
@@ -236,7 +236,7 @@ class PortfolioController extends Controller
                 return $this->successResponse(['status' => 'success'], 'Portfolio transactions are already synced', 200);
             }
 
-            SyncTransactions::dispatch($this->exchangeService, $jobId, $portfolio, $user_id);
+            SyncTransactions::dispatch($jobId, $portfolio, $user_id);
             return $this->successResponse(['status' => 'syncing', 'job_id' => $jobId], 'Portfolio transactions are syncing', 200);
         } catch (\Exception $e) {
             return $this->handleException($e, ['portfolio_id' => $validatedData['portfolio_id']]);

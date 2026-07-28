@@ -6,37 +6,48 @@ use App\DataProviders\CexServiceProvider;
 use App\Models\Transaction;
 use App\Services\ExchangeService;
 use App\Services\PortfolioService;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 
-class SyncTransactions implements ShouldQueue
+class SyncTransactions implements ShouldQueue, ShouldBeUnique
 {
     use Queueable;
 
     /**
      * Create a new job instance.
      */
-    protected $exchangeService;
     protected $jobId;
     protected $portfolio;
     protected $userId;
 
-    public function __construct(ExchangeService $exchangeService, $jobId, $portfolio, $userId)
+    public $uniqueFor = 600;
+
+    public function __construct($jobId, $portfolio, $userId)
     {
-        $this->exchangeService = $exchangeService;
         $this->jobId = $jobId;
         $this->portfolio = $portfolio;
         $this->userId = $userId;
     }
 
     /**
+     * $jobId is already "{userId}_{portfolioId}" — one sync in flight per portfolio.
+     */
+    public function uniqueId(): string
+    {
+        return $this->jobId;
+    }
+
+    /**
      * Execute the job.
      */
-    public function handle(CexServiceProvider $cexService): void
+    public function handle(CexServiceProvider $cexService, ExchangeService $exchangeService): void
     {
+        $exchangeService = $exchangeService->forUser($this->userId);
+
         $currencies = $this->portfolio->assets()
                     ->pluck('symbol')
                     ->map(fn ($asset) => strtoupper($asset))
@@ -52,14 +63,14 @@ class SyncTransactions implements ShouldQueue
         $errors = [];
 
         try {
-            $transactions = $this->exchangeService->syncTransactions($symbols, $lastUpdated, $this->userId);
+            $transactions = $exchangeService->syncTransactions($symbols, $lastUpdated, $this->userId);
         } catch (\Throwable $e) {
             Log::error("SyncTransactions: failed to fetch trades: " . $e->getMessage());
             $errors[] = 'Failed to fetch trades: ' . $e->getMessage();
         }
 
         try {
-            $movements = $this->exchangeService->syncDepositsWithdrawals($currencies, $lastUpdated, $this->userId);
+            $movements = $exchangeService->syncDepositsWithdrawals($currencies, $lastUpdated, $this->userId);
         } catch (\Throwable $e) {
             Log::error("SyncTransactions: failed to fetch deposits/withdrawals: " . $e->getMessage());
             $errors[] = 'Failed to fetch deposits/withdrawals: ' . $e->getMessage();

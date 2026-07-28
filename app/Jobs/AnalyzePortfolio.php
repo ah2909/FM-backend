@@ -21,7 +21,7 @@ class AnalyzePortfolio implements ShouldQueue
     protected int $portfolioId;
     protected string $jobId;
 
-    public $timeout = 300;
+    public $timeout = 180;
 
     /**
      * Create a new job instance.

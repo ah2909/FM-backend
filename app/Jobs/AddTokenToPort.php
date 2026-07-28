@@ -7,34 +7,55 @@ use App\Models\Portfolio;
 use App\Models\PortfolioAssetWallet;
 use App\Models\Transaction;
 use App\Services\AssetService;
+use App\Services\ExchangeService;
 use App\Services\PortfolioService;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class AddTokenToPort implements ShouldQueue
+class AddTokenToPort implements ShouldQueue, ShouldBeUnique
 {
     use Queueable;
 
     protected $data;
     protected $userId;
-    protected $exchangeService;
+
+    /**
+     * Hold the lock no longer than the job can plausibly run, so a worker killed
+     * mid-job can't wedge the portfolio permanently.
+     */
+    public $uniqueFor = 600;
+
     /**
      * Create a new job instance.
      */
-    public function __construct($data, $userId, $exchangeService)
+    public function __construct($data, $userId)
     {
-        $this->exchangeService = $exchangeService;
         $this->data = $data;
         $this->userId = $userId;
     }
 
     /**
+     * One in-flight add per portfolio per token set — a double-submit from the UI
+     * would otherwise attach the same assets twice.
+     */
+    public function uniqueId(): string
+    {
+        $symbols = array_map(fn ($token) => strtoupper($token['symbol']), $this->data['token']);
+        sort($symbols);
+
+        return $this->userId . ':' . $this->data['portfolio_id'] . ':' . md5(implode(',', $symbols));
+    }
+
+    /**
      * Execute the job.
      */
-    public function handle(AssetService $assetService, CexServiceProvider $cexService): void
+    public function handle(AssetService $assetService, CexServiceProvider $cexService, ExchangeService $exchangeService): void
     {
+        $exchangeService = $exchangeService->forUser($this->userId);
+
         try {
             $portfolio = Portfolio::findOrFail($this->data['portfolio_id']);
                 
@@ -52,7 +73,7 @@ class AddTokenToPort implements ShouldQueue
                     ];
                 }
             }
-            $transactions = $this->exchangeService->getSymbolTransactions($listSymbols);
+            $transactions = $exchangeService->getSymbolTransactions($listSymbols);
             $formattedTransactions = [];
 
             foreach ($listSymbols as $index => $symbol) {
