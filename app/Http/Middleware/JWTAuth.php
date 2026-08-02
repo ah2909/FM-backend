@@ -16,7 +16,7 @@ class JWTAuth
     {
         $token = $request->bearerToken();
         if (!$token) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
 
         try {
@@ -26,7 +26,7 @@ class JWTAuth
             return $next($request);
         } catch (\Exception $e) {
             Log::error('JWT decode error: ' . $e->getMessage());
-            return response()->json(['error' => 'Invalid token'], 403);
+            return response()->json(['error' => 'Invalid token'], 401);
         }
 
     }
