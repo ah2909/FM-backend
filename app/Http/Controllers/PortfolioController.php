@@ -388,4 +388,70 @@ class PortfolioController extends Controller
             return $this->handleException($e, ['user_id' => $userId, 'exchange' => $exchange]);
         }
     }
+
+    public function getTransactions(Request $request)
+    {
+        try {
+            $user_id = $request->attributes->get('user')->id;
+            $portfolioIds = Portfolio::where('user_id', $user_id)->pluck('id');
+            if ($portfolioIds->isEmpty()) {
+                return $this->successResponse([]);
+            }
+
+            $query = Transaction::with('asset:id,symbol,name')
+                ->whereIn('portfolio_id', $portfolioIds);
+
+            if ($request->filled('symbol')) {
+                $symbol = strtoupper($request->input('symbol'));
+                $query->whereHas('asset', function ($q) use ($symbol) {
+                    $q->where('symbol', $symbol);
+                });
+            }
+
+            if ($request->filled('days')) {
+                $days = (int) $request->input('days');
+                $query->where('transact_date', '>=', now()->subDays($days));
+            }
+
+            $limit = min((int) $request->input('limit', 50), 50);
+            $transactions = $query->orderBy('transact_date', 'desc')
+                ->limit($limit)
+                ->get()
+                ->map(function ($t) {
+                    return [
+                        'id' => $t->id,
+                        'symbol' => $t->asset ? $t->asset->symbol : null,
+                        'name' => $t->asset ? $t->asset->name : null,
+                        'type' => $t->type,
+                        'quantity' => $t->quantity,
+                        'price' => $t->price,
+                        'transact_date' => $t->transact_date ? $t->transact_date->toIso8601String() : null,
+                    ];
+                });
+
+            return $this->successResponse($transactions);
+        } catch (\Exception $e) {
+            return $this->handleException($e);
+        }
+    }
+
+    public function getHistory(Request $request)
+    {
+        try {
+            $user_id = $request->attributes->get('user')->id;
+            $days = (int) $request->input('days', 30);
+
+            $history = DB::table('portfolio_balance')
+                ->select(['balance', 'date'])
+                ->where('user_id', $user_id)
+                ->where('date', '>=', now()->subDays($days)->toDateString())
+                ->orderBy('date', 'asc')
+                ->get();
+
+            return $this->successResponse($history);
+        } catch (\Exception $e) {
+            return $this->handleException($e);
+        }
+    }
 }
+
