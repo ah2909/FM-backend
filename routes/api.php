@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AssetController;
+use App\Http\Controllers\ChatController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ExchangeController;
 use App\Http\Controllers\MarketController;
@@ -14,6 +15,8 @@ Route::middleware('throttle:30,1')->get('public/portfolio/{token}', [PublicPortf
 
 Route::middleware([JWTAuth::class])->group(function () {
 
+    Route::middleware('throttle:20,1')->post('chat', [ChatController::class, 'chat']);
+
     Route::prefix('portfolio')->group(function () {
         Route::get('', [PortfolioController::class, 'getPortByUserID']);
         Route::post('', [PortfolioController::class, 'store']);
@@ -23,6 +26,8 @@ Route::middleware([JWTAuth::class])->group(function () {
         // Route::post('/asset/add-manual', [PortfolioController::class, 'addTokenToPortManual']);
         Route::post('/asset/remove', [PortfolioController::class, 'removeTokenfromPort']);
         Route::post('/sync-transactions', [PortfolioController::class, 'syncPortfolioTransactions']);
+        Route::get('/transactions', [PortfolioController::class, 'getTransactions']);
+        Route::get('/history', [PortfolioController::class, 'getHistory']);
         Route::get('/balance', [PortfolioController::class, 'getBalanceByUserID']);
         Route::get('/recent-activity', [PortfolioController::class, 'getRecentActivity']);
         Route::patch('/recent-activity/read-all', [PortfolioController::class, 'markAllNotificationsRead']);
@@ -33,6 +38,7 @@ Route::middleware([JWTAuth::class])->group(function () {
         Route::post('/{portfolio_id}/share', [PortfolioController::class, 'enableShare']);
         Route::delete('/{portfolio_id}/share', [PortfolioController::class, 'disableShare']);
     });
+
 
     Route::prefix('asset')->group(function () {
         Route::get('', [AssetController::class, 'index']);
