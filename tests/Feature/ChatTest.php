@@ -3,43 +3,61 @@
 namespace Tests\Feature;
 
 use App\Jobs\ChatWithAgent;
+use Firebase\JWT\JWT;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ChatTest extends TestCase
 {
-    public function test_chat_endpoint_exists_and_requires_auth()
-    {
-        $response = $this->postJson('/api/chat', [
-            'message' => 'Why is my portfolio down this week?',
-        ]);
-
-        // Without a valid JWT the JWTAuth middleware should return 401 (not 404 or 500)
-        $response->assertStatus(401);
-    }
-
-    public function test_chat_endpoint_dispatches_agent_job_when_authenticated()
+    public function test_chat_endpoint_rejects_missing_token(): void
     {
         Queue::fake();
 
-        // Simulate a request with a mock user already set by JWTAuth (bypass middleware)
-        $user = new \stdClass();
-        $user->id = 123;
-        $user->email = 'test@example.com';
+        $this->postJson('/api/chat', ['message' => 'Portfolio question'])
+            ->assertStatus(403)
+            ->assertJson(['error' => 'Unauthorized']);
 
-        $response = $this
-            ->withMiddleware(\App\Http\Middleware\JWTAuth::class)
-            ->postJson('/api/chat', [
-                'message' => 'Why is my portfolio down this week?',
-            ]);
-
-        // Without a real JWT the middleware blocks — just assert route resolves (not 404)
-        $this->assertNotEquals(404, $response->status(), 'Chat route should resolve (not 404)');
+        Queue::assertNothingPushed();
     }
 
-    public function test_chatwithagent_job_can_be_instantiated()
+    public function test_chat_endpoint_dispatches_agent_job_when_authenticated(): void
     {
-        $job = new ChatWithAgent('123', 'conv-abc', 'Test message', 'fake.jwt.token');
-        $this->assertInstanceOf(ChatWithAgent::class, $job);
+        Queue::fake();
+        $token = $this->signedToken(time() + 60);
+
+        $this->withToken($token)->postJson('/api/chat', [
+            'message' => 'Portfolio question',
+            'conversation_id' => 'runtime-check',
+        ])->assertStatus(202);
+
+        Queue::assertPushed(ChatWithAgent::class);
+    }
+
+    public function test_chat_endpoint_rejects_expired_token(): void
+    {
+        Queue::fake();
+        $token = $this->signedToken(time() - 60);
+
+        $this->withToken($token)->postJson('/api/chat', ['message' => 'Portfolio question'])
+            ->assertStatus(403)
+            ->assertJson(['error' => 'Invalid token']);
+
+        Queue::assertNothingPushed();
+    }
+
+    private function signedToken(int $expiresAt): string
+    {
+        $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        openssl_pkey_export($key, $privateKey);
+        $details = openssl_pkey_get_details($key);
+        Cache::put('jwks_public_key', [
+            'kty' => 'RSA',
+            'alg' => 'RS256',
+            'n' => JWT::urlsafeB64Encode($details['rsa']['n']),
+            'e' => JWT::urlsafeB64Encode($details['rsa']['e']),
+        ], 60);
+
+        return JWT::encode(['id' => 123, 'exp' => $expiresAt], $privateKey, 'RS256');
     }
 }
